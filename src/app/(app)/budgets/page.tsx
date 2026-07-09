@@ -1,7 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { BudgetRow } from "@/components/budget-row";
+import { GoalsSection } from "@/components/goals-section";
+import { getBudgets, getGoals, getCategories, getMonthTransactions } from "@/lib/data";
 
-export default function BudgetsPage() {
+export default async function BudgetsPage() {
+  const [categories, budgets, monthTransactions, goals] = await Promise.all([
+    getCategories(),
+    getBudgets(),
+    getMonthTransactions(),
+    getGoals(),
+  ]);
+
+  const spendByCategory = new Map<string, number>();
+  for (const t of monthTransactions) {
+    if (!t.category_id || t.category?.type !== "expense") continue;
+    spendByCategory.set(t.category_id, (spendByCategory.get(t.category_id) ?? 0) + t.amount);
+  }
+
+  const expenseCategories = categories.filter((c) => c.type === "expense");
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div>
@@ -13,21 +30,25 @@ export default function BudgetsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Exemple — Courses
-          </CardTitle>
+          <CardTitle className="text-base">Ce mois-ci</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <Progress value={0} />
-          <p className="text-xs text-muted-foreground">0 € dépensés sur — €</p>
+        <CardContent className="divide-y">
+          {expenseCategories.map((category) => {
+            const budget = budgets.find((b) => b.category_id === category.id);
+            return (
+              <BudgetRow
+                key={category.id}
+                category={category}
+                budgetId={budget?.id ?? null}
+                limit={budget?.amount_limit ?? null}
+                spent={spendByCategory.get(category.id) ?? 0}
+              />
+            );
+          })}
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-          Les budgets se créent une fois les catégories en place.
-        </CardContent>
-      </Card>
+      <GoalsSection goals={goals} />
     </div>
   );
 }

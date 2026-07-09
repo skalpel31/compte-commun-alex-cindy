@@ -1,18 +1,23 @@
 import { SidebarNav, BottomNav } from "@/components/nav-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LogoutButton } from "@/components/logout-button";
+import { BrandMark } from "@/components/brand-mark";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-svh w-full">
       <aside className="hidden w-60 shrink-0 border-r bg-sidebar md:flex md:flex-col md:gap-1 md:p-4">
-        <div className="mb-4 px-2 text-lg font-semibold tracking-tight">Nous Deux</div>
+        <div className="mb-5 px-2">
+          <BrandMark />
+        </div>
         <SidebarNav />
       </aside>
 
       <div className="flex min-h-svh w-full flex-1 flex-col">
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b bg-background/80 px-4 backdrop-blur">
-          <span className="text-base font-semibold tracking-tight md:hidden">Nous Deux</span>
+          <div className="md:hidden">
+            <BrandMark />
+          </div>
           <span className="hidden text-sm text-muted-foreground md:block" />
           <div className="flex items-center gap-1">
             <ThemeToggle />

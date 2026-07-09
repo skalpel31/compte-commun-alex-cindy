@@ -18,11 +18,17 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-chart-8: var(--chart-8);
+  --color-chart-7: var(--chart-7);
+  --color-chart-6: var(--chart-6);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-critical: var(--critical);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -48,74 +54,112 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * The imported "shadcn/tailwind.css" package base layer ships its own
+ * :root/.dark token values. Turbopack's CSS bundler doesn't reliably let a
+ * later same-selector block from this file win the cascade over that
+ * imported one (order gets rewritten during bundling), so every token here
+ * is !important to guarantee this app's palette — not the package default —
+ * is what actually renders.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: oklch(1 0 0) !important;
+  --foreground: oklch(0.145 0 0) !important;
+  --card: oklch(1 0 0) !important;
+  --card-foreground: oklch(0.145 0 0) !important;
+  --popover: oklch(1 0 0) !important;
+  --popover-foreground: oklch(0.145 0 0) !important;
+  --primary: #2554d6 !important;
+  --primary-foreground: oklch(0.985 0 0) !important;
+  --secondary: oklch(0.97 0 0) !important;
+  --secondary-foreground: oklch(0.205 0 0) !important;
+  --muted: oklch(0.97 0 0) !important;
+  --muted-foreground: oklch(0.556 0 0) !important;
+  --accent: #eaf0fd !important;
+  --accent-foreground: #1c3f9e !important;
+  --destructive: oklch(0.577 0.245 27.325) !important;
+  --border: oklch(0.922 0 0) !important;
+  --input: oklch(0.922 0 0) !important;
+  --ring: #2554d6 !important;
+  --chart-1: #2a78d6 !important;
+  --chart-2: #1baf7a !important;
+  --chart-3: #eda100 !important;
+  --chart-4: #008300 !important;
+  --chart-5: #4a3aa7 !important;
+  --chart-6: #e34948 !important;
+  --chart-7: #e87ba4 !important;
+  --chart-8: #eb6834 !important;
+  --good: #0ca30c !important;
+  --warning: #fab219 !important;
+  --critical: #d03b3b !important;
+  --radius: 0.625rem !important;
+  --sidebar: oklch(0.985 0 0) !important;
+  --sidebar-foreground: oklch(0.145 0 0) !important;
+  --sidebar-primary: #2554d6 !important;
+  --sidebar-primary-foreground: oklch(0.985 0 0) !important;
+  --sidebar-accent: #eaf0fd !important;
+  --sidebar-accent-foreground: #1c3f9e !important;
+  --sidebar-border: oklch(0.922 0 0) !important;
+  --sidebar-ring: #2554d6 !important;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.145 0 0) !important;
+  --foreground: oklch(0.985 0 0) !important;
+  --card: oklch(0.205 0 0) !important;
+  --card-foreground: oklch(0.985 0 0) !important;
+  --popover: oklch(0.205 0 0) !important;
+  --popover-foreground: oklch(0.985 0 0) !important;
+  --primary: #5b93f5 !important;
+  --primary-foreground: #051335 !important;
+  --secondary: oklch(0.269 0 0) !important;
+  --secondary-foreground: oklch(0.985 0 0) !important;
+  --muted: oklch(0.269 0 0) !important;
+  --muted-foreground: oklch(0.708 0 0) !important;
+  --accent: #16264d !important;
+  --accent-foreground: #a9c5fb !important;
+  --destructive: oklch(0.704 0.191 22.216) !important;
+  --border: oklch(1 0 0 / 10%) !important;
+  --input: oklch(1 0 0 / 15%) !important;
+  --ring: #5b93f5 !important;
+  --chart-1: #3987e5 !important;
+  --chart-2: #199e70 !important;
+  --chart-3: #c98500 !important;
+  --chart-4: #008300 !important;
+  --chart-5: #9085e9 !important;
+  --chart-6: #e66767 !important;
+  --chart-7: #d55181 !important;
+  --chart-8: #d95926 !important;
+  --good: #0ca30c !important;
+  --warning: #fab219 !important;
+  --critical: #d03b3b !important;
+  --sidebar: oklch(0.205 0 0) !important;
+  --sidebar-foreground: oklch(0.985 0 0) !important;
+  --sidebar-primary: #5b93f5 !important;
+  --sidebar-primary-foreground: #051335 !important;
+  --sidebar-accent: #16264d !important;
+  --sidebar-accent-foreground: #a9c5fb !important;
+  --sidebar-border: oklch(1 0 0 / 10%) !important;
+  --sidebar-ring: #5b93f5 !important;
 }
+
+/*
+ * Chart 6-8 and status colors: cross-file @theme merging with the imported
+ * package is unreliable under Turbopack, so these utilities are written by
+ * hand instead of relying on Tailwind to generate them from @theme inline.
+ */
+.bg-chart-6 { background-color: var(--chart-6); }
+.bg-chart-7 { background-color: var(--chart-7); }
+.bg-chart-8 { background-color: var(--chart-8); }
+.text-chart-6 { color: var(--chart-6); }
+.text-chart-7 { color: var(--chart-7); }
+.text-chart-8 { color: var(--chart-8); }
+.bg-good { background-color: var(--good); }
+.bg-warning { background-color: var(--warning); }
+.bg-critical { background-color: var(--critical); }
+.text-good { color: var(--good); }
+.text-warning { color: var(--warning); }
+.text-critical { color: var(--critical); }
 
 @layer base {
   * {
