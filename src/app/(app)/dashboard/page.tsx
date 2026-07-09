@@ -25,8 +25,8 @@ export default async function DashboardPage() {
       getBills(),
     ]);
 
-  const monthSpend = monthTransactions
-    .filter((t) => t.category?.type !== "income")
+  const personalSpend = monthTransactions
+    .filter((t) => t.category?.type !== "income" && t.split_type === "personal")
     .reduce((sum, t) => sum + t.amount, 0);
 
   const pendingBills = bills.filter((bill) => bill.status !== "paid").slice(0, 3);
@@ -74,11 +74,12 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Dépenses ce mois-ci
+              Dépenses personnelles
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{formatAmount(monthSpend)}</p>
+            <p className="text-2xl font-semibold tabular-nums">{formatAmount(personalSpend)}</p>
+            <p className="text-xs text-muted-foreground">Prêts, assurances à ton nom...</p>
           </CardContent>
         </Card>
         <Link href="/bills">
