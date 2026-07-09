@@ -24,7 +24,7 @@ export default async function BudgetsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Budgets</h1>
         <p className="text-sm text-muted-foreground">
-          Un budget par catégorie, avec alerte quand vous approchez de la limite.
+          Calculé automatiquement depuis tes factures, ou à définir toi-même.
         </p>
       </div>
 
@@ -42,6 +42,7 @@ export default async function BudgetsPage() {
                 budgetId={budget?.id ?? null}
                 limit={budget?.amount_limit ?? null}
                 spent={spendByCategory.get(category.id) ?? 0}
+                auto={budget?.auto ?? false}
               />
             );
           })}

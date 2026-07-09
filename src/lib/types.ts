@@ -35,6 +35,7 @@ export type Budget = {
   amount_limit: number;
   scope: "shared" | "personal";
   user_id: string | null;
+  auto: boolean;
   category: Category | null;
 };
 

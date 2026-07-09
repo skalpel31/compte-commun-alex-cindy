@@ -29,16 +29,19 @@ const CHART_SLOTS = [
   "chart-8",
 ];
 
-const ICON_OPTIONS = [
-  "shopping-cart",
-  "home",
-  "car",
-  "repeat",
-  "party-popper",
-  "heart-pulse",
-  "more-horizontal",
-  "wallet",
-];
+const ICON_LABELS: Record<string, string> = {
+  "shopping-cart": "Panier",
+  home: "Maison",
+  car: "Voiture",
+  repeat: "Abonnement",
+  "party-popper": "Fête",
+  "heart-pulse": "Santé",
+  "more-horizontal": "Autre",
+  wallet: "Portefeuille",
+};
+
+const ICON_OPTIONS = Object.keys(ICON_LABELS);
+const TYPE_LABELS = { expense: "Dépense", income: "Revenu" } as const;
 
 function NewCategorySheet({ nextColor }: { nextColor: string }) {
   const [open, setOpen] = useState(false);
@@ -85,12 +88,12 @@ function NewCategorySheet({ nextColor }: { nextColor: string }) {
                 <Label>Icône</Label>
                 <Select value={icon} onValueChange={(v) => setIcon(v ?? ICON_OPTIONS[0])}>
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue>{(value: string) => ICON_LABELS[value]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {ICON_OPTIONS.map((i) => (
                       <SelectItem key={i} value={i}>
-                        {i}
+                        {ICON_LABELS[i]}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -103,7 +106,9 @@ function NewCategorySheet({ nextColor }: { nextColor: string }) {
                   onValueChange={(v) => setType((v ?? "expense") as "expense" | "income")}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue>
+                      {(value: keyof typeof TYPE_LABELS) => TYPE_LABELS[value]}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="expense">Dépense</SelectItem>

@@ -4,6 +4,45 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { currentMonth } from "@/lib/format";
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Keeps a category's current-month budget in sync with the sum of its
+ * active bills — unless the user has manually customized that budget
+ * (auto = false), in which case their number wins.
+ */
+async function syncCategoryBudgetFromBills(supabase: SupabaseClient, categoryId: string | null) {
+  if (!categoryId) return;
+  const month = currentMonth();
+
+  const { data: bills } = await supabase
+    .from("bills")
+    .select("amount")
+    .eq("category_id", categoryId)
+    .eq("active", true);
+  const total = (bills ?? []).reduce((sum, b) => sum + Number(b.amount), 0);
+
+  const { data: existing } = await supabase
+    .from("budgets")
+    .select("id, auto")
+    .eq("category_id", categoryId)
+    .eq("month", month)
+    .maybeSingle();
+
+  if (total <= 0) {
+    if (existing?.auto) await supabase.from("budgets").delete().eq("id", existing.id);
+    return;
+  }
+
+  if (!existing) {
+    await supabase
+      .from("budgets")
+      .insert({ category_id: categoryId, month, amount_limit: total, scope: "shared", user_id: null, auto: true });
+  } else if (existing.auto) {
+    await supabase.from("budgets").update({ amount_limit: total }).eq("id", existing.id);
+  }
+}
+
 export type TransactionInput = {
   amount: number;
   description: string;
@@ -47,7 +86,7 @@ export async function upsertBudget(input: BudgetInput) {
   const { error } = await supabase
     .from("budgets")
     .upsert(
-      { ...input, month: input.month ?? currentMonth() },
+      { ...input, month: input.month ?? currentMonth(), auto: false },
       { onConflict: "category_id,month" }
     );
   if (error) throw new Error(error.message);
@@ -141,15 +180,20 @@ export async function createBill(input: BillInput) {
   const supabase = await createClient();
   const { error } = await supabase.from("bills").insert(input);
   if (error) throw new Error(error.message);
+  await syncCategoryBudgetFromBills(supabase, input.category_id);
   revalidatePath("/bills");
+  revalidatePath("/budgets");
   revalidatePath("/dashboard");
 }
 
 export async function deleteBill(id: string) {
   const supabase = await createClient();
+  const { data: bill } = await supabase.from("bills").select("category_id").eq("id", id).single();
   const { error } = await supabase.from("bills").delete().eq("id", id);
   if (error) throw new Error(error.message);
+  if (bill) await syncCategoryBudgetFromBills(supabase, bill.category_id);
   revalidatePath("/bills");
+  revalidatePath("/budgets");
   revalidatePath("/dashboard");
 }
 

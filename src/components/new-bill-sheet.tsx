@@ -103,7 +103,11 @@ export function NewBillSheet({ categories }: { categories: Category[] }) {
               <Label>Catégorie</Label>
               <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "none")}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Optionnel" />
+                  <SelectValue placeholder="Optionnel">
+                    {(value: string) =>
+                      value === "none" ? "Aucune" : categories.find((c) => c.id === value)?.name
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Aucune</SelectItem>

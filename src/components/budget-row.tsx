@@ -16,11 +16,13 @@ export function BudgetRow({
   budgetId,
   limit,
   spent,
+  auto,
 }: {
   category: Category;
   budgetId: string | null;
   limit: number | null;
   spent: number;
+  auto: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(limit ? String(limit) : "");
@@ -81,6 +83,7 @@ export function BudgetRow({
           {limit ? (
             <span className="text-xs text-muted-foreground">
               {formatAmount(spent)} / {formatAmount(limit)}
+              {auto && <span className="ml-1 text-primary">· auto</span>}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground">Définir un budget</span>
@@ -116,6 +119,12 @@ export function BudgetRow({
             <p className="text-xs text-muted-foreground">
               Déjà dépensé ce mois-ci : {formatAmount(spent)}
             </p>
+            {auto && (
+              <p className="text-xs text-primary">
+                Calculé automatiquement depuis tes factures — l&apos;enregistrer ici fixera un
+                montant fixe à la place.
+              </p>
+            )}
           </div>
           <SheetFooter className="flex-row gap-2">
             {budgetId && (
