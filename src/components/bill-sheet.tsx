@@ -35,6 +35,7 @@ function BillForm({
   const [dueDay, setDueDay] = useState(bill ? String(bill.due_day) : "1");
   const [categoryId, setCategoryId] = useState<string>(bill?.category_id ?? "none");
   const [payer, setPayer] = useState<string>(bill?.default_payer ?? "");
+  const [splitType, setSplitType] = useState<"shared" | "personal">(bill?.split_type ?? "shared");
   const [autopay, setAutopay] = useState(bill?.autopay ?? false);
   const [pending, startTransition] = useTransition();
 
@@ -51,6 +52,7 @@ function BillForm({
       due_day: day,
       category_id: categoryId === "none" ? null : categoryId,
       default_payer: payer || null,
+      split_type: splitType,
       autopay,
     };
     startTransition(async () => {
@@ -145,6 +147,39 @@ function BillForm({
           </div>
           <p className="text-xs text-muted-foreground">
             Optionnel — sinon on te demandera qui a payé à chaque fois.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label>Répartition</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setSplitType("shared")}
+              className={cn(
+                "rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors",
+                splitType === "shared"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-muted"
+              )}
+            >
+              Partagé
+            </button>
+            <button
+              type="button"
+              onClick={() => setSplitType("personal")}
+              className={cn(
+                "rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors",
+                splitType === "personal"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-muted"
+              )}
+            >
+              Personnel
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Personnel = ne compte pas dans l&apos;objectif de contribution de l&apos;autre (ex :
+            prêt ou assurance à ton nom).
           </p>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3">

@@ -174,6 +174,7 @@ export type BillInput = {
   due_day: number;
   category_id: string | null;
   default_payer: string | null;
+  split_type: "shared" | "personal";
   autopay: boolean;
 };
 
@@ -217,7 +218,7 @@ export async function markBillPaid(billId: string, userId: string) {
 
   const { data: bill, error: billError } = await supabase
     .from("bills")
-    .select("name, amount, category_id")
+    .select("name, amount, category_id, split_type")
     .eq("id", billId)
     .single();
   if (billError) throw new Error(billError.message);
@@ -229,6 +230,9 @@ export async function markBillPaid(billId: string, userId: string) {
   if (profilesError) throw new Error(profilesError.message);
   const other = profiles?.[0];
 
+  const split_ratio =
+    bill.split_type === "personal" || !other ? { [userId]: 100 } : { [userId]: 50, [other.id]: 50 };
+
   const { data: transaction, error: txError } = await supabase
     .from("transactions")
     .insert({
@@ -237,8 +241,8 @@ export async function markBillPaid(billId: string, userId: string) {
       date: new Date().toISOString().slice(0, 10),
       category_id: bill.category_id,
       paid_by: userId,
-      split_type: "shared",
-      split_ratio: other ? { [userId]: 50, [other.id]: 50 } : { [userId]: 100 },
+      split_type: bill.split_type,
+      split_ratio,
     })
     .select("id")
     .single();

@@ -64,6 +64,7 @@ export type Bill = {
   due_day: number;
   category_id: string | null;
   default_payer: string | null;
+  split_type: "shared" | "personal";
   autopay: boolean;
   active: boolean;
   category: Category | null;

@@ -92,6 +92,9 @@ export function BillRow({
               ? `Le ${bill.due_day} du mois`
               : `${meta.label} · le ${bill.due_day}`}
             {payerName && <span className="text-muted-foreground"> · {payerName}</span>}
+            {bill.split_type === "personal" && (
+              <span className="text-muted-foreground"> · personnel</span>
+            )}
           </p>
         </div>
       </button>
