@@ -36,6 +36,7 @@ export function TrendChart({ data }: { data: Point[] }) {
           <Area
             type="monotone"
             dataKey="total"
+            name="Dépenses"
             stroke="var(--chart-1)"
             strokeWidth={2}
             fill="var(--chart-1)"
