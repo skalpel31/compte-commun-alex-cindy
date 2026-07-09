@@ -139,6 +139,34 @@ export async function getBills(): Promise<BillWithStatus[]> {
   });
 }
 
+export type Contribution = {
+  profile: Profile;
+  target: number;
+  paid: number;
+};
+
+export async function getContributions(
+  month = currentMonth()
+): Promise<{ contributions: Contribution[]; totalShared: number }> {
+  const [profiles, transactions] = await Promise.all([getProfiles(), getMonthTransactions(month)]);
+  const shared = transactions.filter((t) => t.split_type === "shared");
+  const totalShared = shared.reduce((sum, t) => sum + t.amount, 0);
+  const fallbackShare = profiles.length ? 100 / profiles.length : 0;
+
+  const contributions = profiles.map((profile) => {
+    let target = 0;
+    let paid = 0;
+    for (const t of shared) {
+      const share = t.split_ratio?.[profile.id] ?? fallbackShare;
+      target += t.amount * (share / 100);
+      if (t.paid_by === profile.id) paid += t.amount;
+    }
+    return { profile, target, paid };
+  });
+
+  return { contributions, totalShared };
+}
+
 export type Balance = {
   net: number; // positive: profiles[1] owes profiles[0]; negative: profiles[0] owes profiles[1]
   profiles: Profile[];

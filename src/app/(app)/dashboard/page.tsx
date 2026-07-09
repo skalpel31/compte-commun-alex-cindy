@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { ArrowRight, CircleAlert, Clock, FileText, Scale } from "lucide-react";
+import { ArrowRight, CircleAlert, Clock, FileText, HandCoins } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryBars } from "@/components/category-bars";
 import { TrendChart } from "@/components/trend-chart";
 import { TransactionRow } from "@/components/transaction-row";
 import {
-  getBalance,
   getBills,
+  getContributions,
   getMonthTransactions,
   getMonthlySpend,
   getProfiles,
@@ -15,25 +15,19 @@ import {
 import { formatAmount } from "@/lib/format";
 
 export default async function DashboardPage() {
-  const [monthTransactions, balance, monthlySpend, recent, profiles, bills] = await Promise.all([
-    getMonthTransactions(),
-    getBalance(),
-    getMonthlySpend(),
-    getTransactions(5),
-    getProfiles(),
-    getBills(),
-  ]);
+  const [monthTransactions, { contributions, totalShared }, monthlySpend, recent, profiles, bills] =
+    await Promise.all([
+      getMonthTransactions(),
+      getContributions(),
+      getMonthlySpend(),
+      getTransactions(5),
+      getProfiles(),
+      getBills(),
+    ]);
 
   const monthSpend = monthTransactions
     .filter((t) => t.category?.type !== "income")
     .reduce((sum, t) => sum + t.amount, 0);
-
-  const [a, b] = balance.profiles;
-  const settled = Math.abs(balance.net) < 0.005;
-  let balanceLabel = "Vous êtes à jour";
-  if (a && b && balance.net > 0.005) balanceLabel = `${b.display_name} doit à ${a.display_name}`;
-  else if (a && b && balance.net < -0.005)
-    balanceLabel = `${a.display_name} doit à ${b.display_name}`;
 
   const pendingBills = bills.filter((bill) => bill.status !== "paid").slice(0, 3);
 
@@ -55,22 +49,24 @@ export default async function DashboardPage() {
         />
         <CardContent className="relative flex flex-col gap-1">
           <span className="flex items-center gap-1.5 text-xs font-medium text-primary-foreground/70">
-            <Scale className="size-3.5" />
-            Solde du compte commun
+            <HandCoins className="size-3.5" />
+            Dépenses partagées ce mois-ci
           </span>
           <span className="text-4xl font-semibold tracking-tight tabular-nums">
-            {settled ? "À jour" : formatAmount(Math.abs(balance.net))}
+            {formatAmount(totalShared)}
           </span>
-          <span className="text-sm text-primary-foreground/80">{balanceLabel}</span>
-          {!settled && (
-            <Link
-              href="/settle"
-              className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
-            >
-              Régler
-              <ArrowRight className="size-3.5" />
-            </Link>
-          )}
+          <span className="text-sm text-primary-foreground/80">
+            {contributions
+              .map((c) => `${c.profile.display_name} : ${formatAmount(c.paid)}`)
+              .join(" · ")}
+          </span>
+          <Link
+            href="/settle"
+            className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
+          >
+            Voir les contributions
+            <ArrowRight className="size-3.5" />
+          </Link>
         </CardContent>
       </Card>
 
