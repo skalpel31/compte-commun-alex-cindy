@@ -173,6 +173,7 @@ export type BillInput = {
   amount: number;
   due_day: number;
   category_id: string | null;
+  default_payer: string | null;
   autopay: boolean;
 };
 
@@ -180,6 +181,20 @@ export async function createBill(input: BillInput) {
   const supabase = await createClient();
   const { error } = await supabase.from("bills").insert(input);
   if (error) throw new Error(error.message);
+  await syncCategoryBudgetFromBills(supabase, input.category_id);
+  revalidatePath("/bills");
+  revalidatePath("/budgets");
+  revalidatePath("/dashboard");
+}
+
+export async function updateBill(id: string, input: BillInput) {
+  const supabase = await createClient();
+  const { data: previous } = await supabase.from("bills").select("category_id").eq("id", id).single();
+  const { error } = await supabase.from("bills").update(input).eq("id", id);
+  if (error) throw new Error(error.message);
+  if (previous && previous.category_id !== input.category_id) {
+    await syncCategoryBudgetFromBills(supabase, previous.category_id);
+  }
   await syncCategoryBudgetFromBills(supabase, input.category_id);
   revalidatePath("/bills");
   revalidatePath("/budgets");

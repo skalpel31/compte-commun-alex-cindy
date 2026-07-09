@@ -63,6 +63,7 @@ export type Bill = {
   amount: number;
   due_day: number;
   category_id: string | null;
+  default_payer: string | null;
   autopay: boolean;
   active: boolean;
   category: Category | null;
