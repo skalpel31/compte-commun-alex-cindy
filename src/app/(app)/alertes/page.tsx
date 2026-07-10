@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { CircleAlert, Clock, TriangleAlert } from "lucide-react";
+import { CalendarDays, CircleAlert, Clock, TriangleAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BillCalendar } from "@/components/bill-calendar";
 import { getBills, getPocketBalances } from "@/lib/data";
 import { formatAmount, formatDate } from "@/lib/format";
 
@@ -46,6 +47,21 @@ export default async function AlertesPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="glass">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarDays className="size-4 text-muted-foreground" />
+            Calendrier des factures
+          </CardTitle>
+          <Link href="/bills" className="text-xs text-muted-foreground hover:underline">
+            Gérer les factures
+          </Link>
+        </CardHeader>
+        <CardContent>
+          <BillCalendar bills={bills} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

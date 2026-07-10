@@ -1,13 +1,16 @@
 import { RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import { AdvisorCard, type AdvisorItem } from "@/components/advisor-card";
-import { getBills, getMonthTransactions, getPocketBalances } from "@/lib/data";
+import { AdvisorChat } from "@/components/advisor-chat";
+import { getBills, getGoals, getMonthIncome, getMonthTransactions, getPocketBalances } from "@/lib/data";
 import { formatAmount } from "@/lib/format";
 
 export default async function ConseillerIaPage() {
-  const [pockets, bills, monthTransactions] = await Promise.all([
+  const [pockets, bills, monthTransactions, goals, income] = await Promise.all([
     getPocketBalances(),
     getBills(),
     getMonthTransactions(),
+    getGoals(),
+    getMonthIncome(),
   ]);
 
   const jointPocket = pockets.find((p) => p.name.toLowerCase().includes("joint"));
@@ -69,6 +72,7 @@ export default async function ConseillerIaPage() {
       </div>
 
       <AdvisorCard items={items} analyzedAt={analyzedAt} />
+      <AdvisorChat pockets={pockets} bills={bills} goals={goals} income={income} />
     </div>
   );
 }
