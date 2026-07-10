@@ -7,6 +7,26 @@ import { currentMonth } from "@/lib/format";
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
+ * Every page that derives its numbers from transactions/bills/pockets/goals,
+ * so a write anywhere keeps all of them in sync instead of showing stale
+ * router-cached data on the pages added after the initial set.
+ */
+function revalidateMoneyPaths() {
+  revalidatePath("/dashboard");
+  revalidatePath("/transactions");
+  revalidatePath("/budgets");
+  revalidatePath("/settle");
+  revalidatePath("/comptes");
+  revalidatePath("/flux-argent");
+  revalidatePath("/objectifs");
+  revalidatePath("/epargne");
+  revalidatePath("/simulations");
+  revalidatePath("/conseiller-ia");
+  revalidatePath("/alertes");
+  revalidatePath("/bills");
+}
+
+/**
  * Keeps a category's current-month budget in sync with the sum of its
  * active bills — unless the user has manually customized that budget
  * (auto = false), in which case their number wins.
@@ -88,20 +108,14 @@ export async function createTransaction(input: TransactionInput) {
     if (error) throw new Error(error.message);
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/transactions");
-  revalidatePath("/budgets");
-  revalidatePath("/settle");
+  revalidateMoneyPaths();
 }
 
 export async function deleteTransaction(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("transactions").delete().eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/dashboard");
-  revalidatePath("/transactions");
-  revalidatePath("/budgets");
-  revalidatePath("/settle");
+  revalidateMoneyPaths();
 }
 
 export type BudgetInput = {
@@ -121,15 +135,14 @@ export async function upsertBudget(input: BudgetInput) {
       { onConflict: "category_id,month" }
     );
   if (error) throw new Error(error.message);
-  revalidatePath("/budgets");
-  revalidatePath("/dashboard");
+  revalidateMoneyPaths();
 }
 
 export async function deleteBudget(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("budgets").delete().eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/budgets");
+  revalidateMoneyPaths();
 }
 
 export type CategoryInput = {
@@ -146,9 +159,7 @@ export async function upsertCategory(input: CategoryInput) {
   const { error } = await supabase.from("categories").upsert(input);
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
-  revalidatePath("/transactions");
-  revalidatePath("/budgets");
-  revalidatePath("/dashboard");
+  revalidateMoneyPaths();
 }
 
 export async function deleteCategory(id: string) {
@@ -156,6 +167,7 @@ export async function deleteCategory(id: string) {
   const { error } = await supabase.from("categories").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
+  revalidateMoneyPaths();
 }
 
 export type GoalInput = {
@@ -169,7 +181,7 @@ export async function createGoal(input: GoalInput) {
   const supabase = await createClient();
   const { error } = await supabase.from("goals").insert({ ...input, current_amount: 0 });
   if (error) throw new Error(error.message);
-  revalidatePath("/budgets");
+  revalidateMoneyPaths();
 }
 
 export async function contributeToGoal(id: string, amount: number) {
@@ -185,7 +197,7 @@ export async function contributeToGoal(id: string, amount: number) {
     .update({ current_amount: goal.current_amount + amount })
     .eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/budgets");
+  revalidateMoneyPaths();
 }
 
 export type BillInput = {
@@ -203,9 +215,7 @@ export async function createBill(input: BillInput) {
   const { error } = await supabase.from("bills").insert(input);
   if (error) throw new Error(error.message);
   await syncCategoryBudgetFromBills(supabase, input.category_id);
-  revalidatePath("/bills");
-  revalidatePath("/budgets");
-  revalidatePath("/dashboard");
+  revalidateMoneyPaths();
 }
 
 export async function updateBill(id: string, input: BillInput) {
@@ -217,9 +227,7 @@ export async function updateBill(id: string, input: BillInput) {
     await syncCategoryBudgetFromBills(supabase, previous.category_id);
   }
   await syncCategoryBudgetFromBills(supabase, input.category_id);
-  revalidatePath("/bills");
-  revalidatePath("/budgets");
-  revalidatePath("/dashboard");
+  revalidateMoneyPaths();
 }
 
 export async function deleteBill(id: string) {
@@ -228,9 +236,7 @@ export async function deleteBill(id: string) {
   const { error } = await supabase.from("bills").delete().eq("id", id);
   if (error) throw new Error(error.message);
   if (bill) await syncCategoryBudgetFromBills(supabase, bill.category_id);
-  revalidatePath("/bills");
-  revalidatePath("/budgets");
-  revalidatePath("/dashboard");
+  revalidateMoneyPaths();
 }
 
 export async function markBillPaid(billId: string, userId: string) {
@@ -274,11 +280,7 @@ export async function markBillPaid(billId: string, userId: string) {
   );
   if (error) throw new Error(error.message);
 
-  revalidatePath("/bills");
-  revalidatePath("/dashboard");
-  revalidatePath("/transactions");
-  revalidatePath("/budgets");
-  revalidatePath("/settle");
+  revalidateMoneyPaths();
 }
 
 export async function markBillUnpaid(billId: string) {
@@ -307,18 +309,14 @@ export async function markBillUnpaid(billId: string) {
     .eq("month", currentMonth());
   if (error) throw new Error(error.message);
 
-  revalidatePath("/bills");
-  revalidatePath("/dashboard");
-  revalidatePath("/transactions");
-  revalidatePath("/budgets");
-  revalidatePath("/settle");
+  revalidateMoneyPaths();
 }
 
 export async function deleteGoal(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("goals").delete().eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/budgets");
+  revalidateMoneyPaths();
 }
 
 export async function updatePocketAllocation(id: string, allocation_pct: number) {
@@ -326,5 +324,5 @@ export async function updatePocketAllocation(id: string, allocation_pct: number)
   const { error } = await supabase.from("pockets").update({ allocation_pct }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
-  revalidatePath("/dashboard");
+  revalidateMoneyPaths();
 }
