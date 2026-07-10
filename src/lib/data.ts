@@ -23,24 +23,52 @@ export async function getPockets(): Promise<Pocket[]> {
   return data ?? [];
 }
 
-export type PocketBalance = Pocket & { balance: number };
+export type PocketBalance = Pocket & { balance: number; sparkline: number[] };
 
 export async function getPocketBalances(): Promise<PocketBalance[]> {
   const supabase = await createClient();
   const [{ data: pockets }, { data: rows }] = await Promise.all([
     supabase.from("pockets").select("*").order("sort_order"),
-    supabase.from("transactions").select("amount, pocket_id, category:categories(type)"),
+    supabase
+      .from("transactions")
+      .select("amount, date, pocket_id, category:categories(type)")
+      .order("date"),
   ]);
 
-  type Row = { amount: number; pocket_id: string | null; category: { type: string } | null };
-  const balances = new Map<string, number>();
-  for (const row of (rows as Row[] | null) ?? []) {
-    if (!row.pocket_id) continue;
-    const sign = row.category?.type === "income" ? 1 : -1;
-    balances.set(row.pocket_id, (balances.get(row.pocket_id) ?? 0) + sign * row.amount);
+  type Row = {
+    amount: number;
+    date: string;
+    pocket_id: string | null;
+    category: { type: string } | null;
+  };
+  const txs = (rows as Row[] | null) ?? [];
+
+  const days = 14;
+  const today = new Date();
+  const dayKeys: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    dayKeys.push(localDateString(d));
   }
 
-  return ((pockets as Pocket[] | null) ?? []).map((p) => ({ ...p, balance: balances.get(p.id) ?? 0 }));
+  return ((pockets as Pocket[] | null) ?? []).map((p) => {
+    const pocketTxs = txs.filter((t) => t.pocket_id === p.id);
+    const signed = (t: Row) => (t.category?.type === "income" ? 1 : -1) * t.amount;
+    const balance = pocketTxs.reduce((sum, t) => sum + signed(t), 0);
+
+    const before = pocketTxs
+      .filter((t) => t.date < dayKeys[0])
+      .reduce((sum, t) => sum + signed(t), 0);
+    const sparkline: number[] = [];
+    let running = before;
+    for (const key of dayKeys) {
+      running += pocketTxs.filter((t) => t.date === key).reduce((sum, t) => sum + signed(t), 0);
+      sparkline.push(running);
+    }
+
+    return { ...p, balance, sparkline };
+  });
 }
 
 export async function getCurrentProfile(): Promise<Profile | null> {
@@ -174,5 +202,23 @@ export async function getContributions(
   }));
 
   return { contributions, total };
+}
+
+export type IncomeSource = { label: string; amount: number };
+
+export async function getMonthIncome(
+  month = currentMonth()
+): Promise<{ sources: IncomeSource[]; total: number }> {
+  const transactions = await getMonthTransactions(month);
+  const income = transactions.filter((t) => t.category?.type === "income");
+  const total = income.reduce((sum, t) => sum + t.amount, 0);
+
+  const byLabel = new Map<string, number>();
+  for (const t of income) {
+    const label = t.description || t.category?.name || "Revenu";
+    byLabel.set(label, (byLabel.get(label) ?? 0) + t.amount);
+  }
+
+  return { sources: Array.from(byLabel, ([label, amount]) => ({ label, amount })), total };
 }
 

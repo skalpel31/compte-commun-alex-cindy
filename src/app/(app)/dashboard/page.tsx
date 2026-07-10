@@ -4,12 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryBars } from "@/components/category-bars";
 import { TrendChart } from "@/components/trend-chart";
 import { TransactionRow } from "@/components/transaction-row";
-import { MoneyHub } from "@/components/money-hub";
 import { PocketCards } from "@/components/pocket-cards";
+import { MoneyFlowCard } from "@/components/money-flow-card";
+import { PocketUsageDonut } from "@/components/pocket-usage-donut";
+import { AllocationRules } from "@/components/allocation-rules";
 import {
   getBills,
+  getCategories,
   getCurrentProfile,
   getGoals,
+  getMonthIncome,
   getMonthTransactions,
   getMonthlySpend,
   getPocketBalances,
@@ -28,6 +32,8 @@ export default async function DashboardPage() {
     goals,
     pockets,
     currentProfile,
+    { sources: incomeSources, total: incomeTotal },
+    categories,
   ] = await Promise.all([
     getMonthTransactions(),
     getMonthlySpend(),
@@ -37,6 +43,8 @@ export default async function DashboardPage() {
     getGoals(),
     getPocketBalances(),
     getCurrentProfile(),
+    getMonthIncome(),
+    getCategories(),
   ]);
 
   const total = pockets.reduce((sum, p) => sum + p.balance, 0);
@@ -55,6 +63,17 @@ export default async function DashboardPage() {
   const monthSpend = monthTransactions
     .filter((t) => t.category?.type !== "income")
     .reduce((sum, t) => sum + t.amount, 0);
+
+  const usageByPocket = pockets.map((p) => ({
+    id: p.id,
+    name: p.name,
+    icon: p.icon,
+    color: p.color,
+    spent: monthTransactions
+      .filter((t) => t.pocket_id === p.id && t.category?.type !== "income")
+      .reduce((sum, t) => sum + t.amount, 0),
+  }));
+
   const prevMonths = monthlySpend.slice(0, -1).filter((m) => m.total > 0);
   const avgPrev = prevMonths.length
     ? prevMonths.reduce((s, m) => s + m.total, 0) / prevMonths.length
@@ -84,7 +103,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Bonjour {currentProfile?.display_name ?? ""} 👋
@@ -94,8 +113,15 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <MoneyHub pockets={pockets} total={total} />
-      <PocketCards pockets={pockets} />
+      <MoneyFlowCard incomeSources={incomeSources} incomeTotal={incomeTotal} pockets={pockets} />
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">
+          Vos comptes · Solde total{" "}
+          <span className="font-medium text-foreground">{formatAmount(total)}</span>
+        </p>
+        <PocketCards pockets={pockets} />
+      </div>
 
       {lowBalanceAlert && jointPocket && (
         <Card className="border-warning/30 bg-warning/5">
@@ -114,27 +140,61 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {insights.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="size-4 text-primary" />
-              Conseils
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {insights.map((insight, i) => {
-              const Icon = insight.icon;
-              return (
-                <div key={i} className="flex items-start gap-3 text-sm">
-                  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                  <p>{insight.text}</p>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {insights.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="size-4 text-primary" />
+                Conseils
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {insights.map((insight, i) => {
+                const Icon = insight.icon;
+                return (
+                  <div key={i} className="flex items-start gap-3 text-sm">
+                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                    <p>{insight.text}</p>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
+        {goals.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Objectifs en cours</CardTitle>
+              <Link href="/budgets" className="text-xs text-muted-foreground hover:underline">
+                Voir tous
+              </Link>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {goals.slice(0, 4).map((g) => {
+                const pct = Math.min(100, Math.round((g.current_amount / g.target_amount) * 100));
+                return (
+                  <div key={g.id} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>{g.name}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {formatAmount(g.current_amount)} / {formatAmount(g.target_amount)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-chart-5"
+                        style={{ width: `${Math.max(4, pct)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {pendingBills.length > 0 && (
         <Card>
@@ -168,37 +228,25 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {goals.length > 0 && (
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Objectifs en cours</CardTitle>
-            <Link href="/budgets" className="text-xs text-muted-foreground hover:underline">
-              Voir tous
-            </Link>
+          <CardHeader>
+            <CardTitle className="text-base">Utilisation des comptes</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {goals.slice(0, 4).map((g) => {
-              const pct = Math.min(100, Math.round((g.current_amount / g.target_amount) * 100));
-              return (
-                <div key={g.id} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{g.name}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {formatAmount(g.current_amount)} / {formatAmount(g.target_amount)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-chart-5"
-                      style={{ width: `${Math.max(4, pct)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          <CardContent>
+            <PocketUsageDonut usage={usageByPocket} total={monthSpend} />
           </CardContent>
         </Card>
-      )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Règles de répartition</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AllocationRules categories={categories} pockets={pockets} />
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
