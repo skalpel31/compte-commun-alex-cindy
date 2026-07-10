@@ -17,27 +17,38 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { createBill, updateBill, type BillInput } from "@/lib/actions";
 import { cn } from "@/lib/utils";
-import type { Bill, Category, Profile } from "@/lib/types";
+import type { Bill, Category, Pocket, Profile } from "@/lib/types";
 
 function BillForm({
   bill,
   categories,
   profiles,
+  pockets,
   onDone,
 }: {
   bill?: Bill;
   categories: Category[];
   profiles: Profile[];
+  pockets: Pocket[];
   onDone: () => void;
 }) {
   const [name, setName] = useState(bill?.name ?? "");
   const [amount, setAmount] = useState(bill ? String(bill.amount) : "");
   const [dueDay, setDueDay] = useState(bill ? String(bill.due_day) : "1");
   const [categoryId, setCategoryId] = useState<string>(bill?.category_id ?? "none");
+  const [pocketId, setPocketId] = useState<string>(bill?.pocket_id ?? "none");
+  const [pocketTouched, setPocketTouched] = useState(!!bill?.pocket_id);
   const [payer, setPayer] = useState<string>(bill?.default_payer ?? "");
-  const [splitType, setSplitType] = useState<"shared" | "personal">(bill?.split_type ?? "shared");
   const [autopay, setAutopay] = useState(bill?.autopay ?? false);
   const [pending, startTransition] = useTransition();
+
+  function handleCategoryChange(value: string) {
+    setCategoryId(value);
+    if (!pocketTouched) {
+      const cat = categories.find((c) => c.id === value);
+      setPocketId(cat?.default_pocket_id ?? "none");
+    }
+  }
 
   function handleSave() {
     const numericAmount = parseFloat(amount.replace(",", "."));
@@ -52,7 +63,7 @@ function BillForm({
       due_day: day,
       category_id: categoryId === "none" ? null : categoryId,
       default_payer: payer || null,
-      split_type: splitType,
+      pocket_id: pocketId === "none" ? null : pocketId,
       autopay,
     };
     startTransition(async () => {
@@ -106,25 +117,53 @@ function BillForm({
             />
           </div>
         </div>
-        <div className="flex flex-col gap-2">
-          <Label>Catégorie</Label>
-          <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "none")}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Optionnel">
-                {(value: string) =>
-                  value === "none" ? "Aucune" : categories.find((c) => c.id === value)?.name
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Aucune</SelectItem>
-              {categories.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-2">
+            <Label>Catégorie</Label>
+            <Select value={categoryId} onValueChange={(v) => handleCategoryChange(v ?? "none")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Optionnel">
+                  {(value: string) =>
+                    value === "none" ? "Aucune" : categories.find((c) => c.id === value)?.name
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucune</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Poche</Label>
+            <Select
+              value={pocketId}
+              onValueChange={(v) => {
+                setPocketId(v ?? "none");
+                setPocketTouched(true);
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Aucune">
+                  {(value: string) =>
+                    value === "none" ? "Aucune" : pockets.find((p) => p.id === value)?.name
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucune</SelectItem>
+                {pockets.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex flex-col gap-2">
           <Label>Payeur habituel</Label>
@@ -149,39 +188,6 @@ function BillForm({
             Optionnel — sinon on te demandera qui a payé à chaque fois.
           </p>
         </div>
-        <div className="flex flex-col gap-2">
-          <Label>Répartition</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setSplitType("shared")}
-              className={cn(
-                "rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors",
-                splitType === "shared"
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background hover:bg-muted"
-              )}
-            >
-              Partagé
-            </button>
-            <button
-              type="button"
-              onClick={() => setSplitType("personal")}
-              className={cn(
-                "rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors",
-                splitType === "personal"
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background hover:bg-muted"
-              )}
-            >
-              Personnel
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Personnel = ne compte pas dans l&apos;objectif de contribution de l&apos;autre (ex :
-            prêt ou assurance à ton nom).
-          </p>
-        </div>
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div>
             <p className="text-sm font-medium">Prélèvement automatique</p>
@@ -202,9 +208,11 @@ function BillForm({
 export function NewBillSheet({
   categories,
   profiles,
+  pockets,
 }: {
   categories: Category[];
   profiles: Profile[];
+  pockets: Pocket[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -219,7 +227,12 @@ export function NewBillSheet({
           <SheetHeader>
             <SheetTitle>Nouvelle facture récurrente</SheetTitle>
           </SheetHeader>
-          <BillForm categories={categories} profiles={profiles} onDone={() => setOpen(false)} />
+          <BillForm
+            categories={categories}
+            profiles={profiles}
+            pockets={pockets}
+            onDone={() => setOpen(false)}
+          />
         </SheetContent>
       </Sheet>
     </>
@@ -230,12 +243,14 @@ export function EditBillSheet({
   bill,
   categories,
   profiles,
+  pockets,
   open,
   onOpenChange,
 }: {
   bill: Bill;
   categories: Category[];
   profiles: Profile[];
+  pockets: Pocket[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -249,6 +264,7 @@ export function EditBillSheet({
           bill={bill}
           categories={categories}
           profiles={profiles}
+          pockets={pockets}
           onDone={() => onOpenChange(false)}
         />
       </SheetContent>

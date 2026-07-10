@@ -17,14 +17,16 @@ import {
 import { cn } from "@/lib/utils";
 import { createTransaction } from "@/lib/actions";
 import { localDateString } from "@/lib/format";
-import type { Category, Profile } from "@/lib/types";
+import type { Category, Pocket, Profile } from "@/lib/types";
 
 export function TransactionForm({
   categories,
   profiles,
+  pockets,
 }: {
   categories: Category[];
   profiles: Profile[];
+  pockets: Pocket[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -33,12 +35,20 @@ export function TransactionForm({
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(() => localDateString(new Date()));
   const [categoryId, setCategoryId] = useState("");
+  const [pocketId, setPocketId] = useState("");
+  const [pocketTouched, setPocketTouched] = useState(false);
   const [paidBy, setPaidBy] = useState(profiles[0]?.id ?? "");
-  const [splitType, setSplitType] = useState<"shared" | "personal">("shared");
-  const [payerShare, setPayerShare] = useState(50);
 
-  const other = profiles.find((p) => p.id !== paidBy);
-  const payer = profiles.find((p) => p.id === paidBy);
+  const category = categories.find((c) => c.id === categoryId);
+  const isIncome = category?.type === "income";
+
+  function handleCategoryChange(value: string) {
+    setCategoryId(value);
+    if (!pocketTouched) {
+      const cat = categories.find((c) => c.id === value);
+      setPocketId(cat?.default_pocket_id ?? "");
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,11 +62,6 @@ export function TransactionForm({
       return;
     }
 
-    const split_ratio =
-      splitType === "shared" && other
-        ? { [paidBy]: payerShare, [other.id]: 100 - payerShare }
-        : { [paidBy]: 100 };
-
     startTransition(async () => {
       try {
         await createTransaction({
@@ -65,10 +70,9 @@ export function TransactionForm({
           date,
           category_id: categoryId,
           paid_by: paidBy,
-          split_type: splitType,
-          split_ratio,
+          pocket_id: isIncome ? null : pocketId || null,
         });
-        toast.success("Transaction ajoutée");
+        toast.success(isIncome ? "Revenu réparti dans les poches" : "Transaction ajoutée");
         router.replace("/transactions");
         router.refresh();
       } catch (err) {
@@ -121,9 +125,11 @@ export function TransactionForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
           <Label>Catégorie</Label>
-          <Select value={categoryId} onValueChange={(v) => setCategoryId(v ?? "")}>
+          <Select value={categoryId} onValueChange={(v) => handleCategoryChange(v ?? "")}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choisir" />
+              <SelectValue placeholder="Choisir">
+                {(value: string) => categories.find((c) => c.id === value)?.name}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {categories.map((c) => (
@@ -139,6 +145,31 @@ export function TransactionForm({
           <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
       </div>
+
+      {isIncome ? (
+        <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          Un revenu se répartit automatiquement dans toutes les poches, selon leurs pourcentages
+          (réglables dans Réglages).
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <Label>Poche</Label>
+          <Select value={pocketId} onValueChange={(v) => { setPocketId(v ?? ""); setPocketTouched(true); }}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Choisir une poche">
+                {(value: string) => pockets.find((p) => p.id === value)?.name}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {pockets.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <Label>Payé par</Label>
@@ -160,58 +191,6 @@ export function TransactionForm({
           ))}
         </div>
       </div>
-
-      <div className="flex flex-col gap-2">
-        <Label>Répartition</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setSplitType("shared")}
-            className={cn(
-              "rounded-lg border px-4 py-3 text-sm font-medium transition-colors",
-              splitType === "shared"
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background hover:bg-muted"
-            )}
-          >
-            Partagé
-          </button>
-          <button
-            type="button"
-            onClick={() => setSplitType("personal")}
-            className={cn(
-              "rounded-lg border px-4 py-3 text-sm font-medium transition-colors",
-              splitType === "personal"
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background hover:bg-muted"
-            )}
-          >
-            Personnel
-          </button>
-        </div>
-      </div>
-
-      {splitType === "shared" && other && payer && (
-        <div className="flex flex-col gap-2 rounded-lg border p-3">
-          <div className="flex items-center justify-between text-sm">
-            <span>{payer.display_name}</span>
-            <span className="font-medium">{payerShare}%</span>
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={payerShare}
-            onChange={(e) => setPayerShare(Number(e.target.value))}
-            className="w-full accent-primary"
-          />
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <span>{other.display_name}</span>
-            <span className="font-medium">{100 - payerShare}%</span>
-          </div>
-        </div>
-      )}
 
       <Button type="submit" size="lg" disabled={pending} className="mt-2">
         {pending ? "Enregistrement..." : "Ajouter la transaction"}

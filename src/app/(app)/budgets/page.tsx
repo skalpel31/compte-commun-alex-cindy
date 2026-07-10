@@ -1,14 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BudgetRow } from "@/components/budget-row";
 import { GoalsSection } from "@/components/goals-section";
-import { getBudgets, getGoals, getCategories, getMonthTransactions } from "@/lib/data";
+import { getBudgets, getGoals, getCategories, getMonthTransactions, getPockets } from "@/lib/data";
 
 export default async function BudgetsPage() {
-  const [categories, budgets, monthTransactions, goals] = await Promise.all([
+  const [categories, budgets, monthTransactions, goals, pockets] = await Promise.all([
     getCategories(),
     getBudgets(),
     getMonthTransactions(),
     getGoals(),
+    getPockets(),
   ]);
 
   const spendByCategory = new Map<string, number>();
@@ -49,7 +50,7 @@ export default async function BudgetsPage() {
         </CardContent>
       </Card>
 
-      <GoalsSection goals={goals} />
+      <GoalsSection goals={goals} pockets={pockets} />
     </div>
   );
 }

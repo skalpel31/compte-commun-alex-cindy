@@ -6,8 +6,8 @@ import type {
   Budget,
   Category,
   Goal,
+  Pocket,
   Profile,
-  Settlement,
   Transaction,
 } from "@/lib/types";
 
@@ -15,6 +15,32 @@ export async function getProfiles(): Promise<Profile[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("*").order("created_at");
   return data ?? [];
+}
+
+export async function getPockets(): Promise<Pocket[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("pockets").select("*").order("sort_order");
+  return data ?? [];
+}
+
+export type PocketBalance = Pocket & { balance: number };
+
+export async function getPocketBalances(): Promise<PocketBalance[]> {
+  const supabase = await createClient();
+  const [{ data: pockets }, { data: rows }] = await Promise.all([
+    supabase.from("pockets").select("*").order("sort_order"),
+    supabase.from("transactions").select("amount, pocket_id, category:categories(type)"),
+  ]);
+
+  type Row = { amount: number; pocket_id: string | null; category: { type: string } | null };
+  const balances = new Map<string, number>();
+  for (const row of (rows as Row[] | null) ?? []) {
+    if (!row.pocket_id) continue;
+    const sign = row.category?.type === "income" ? 1 : -1;
+    balances.set(row.pocket_id, (balances.get(row.pocket_id) ?? 0) + sign * row.amount);
+  }
+
+  return ((pockets as Pocket[] | null) ?? []).map((p) => ({ ...p, balance: balances.get(p.id) ?? 0 }));
 }
 
 export async function getCurrentProfile(): Promise<Profile | null> {
@@ -37,7 +63,7 @@ export async function getTransactions(limit?: number): Promise<Transaction[]> {
   const supabase = await createClient();
   let query = supabase
     .from("transactions")
-    .select("*, category:categories(*)")
+    .select("*, category:categories(*), pocket:pockets(*)")
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
   if (limit) query = query.limit(limit);
@@ -52,7 +78,7 @@ export async function getMonthTransactions(month = currentMonth()): Promise<Tran
   const end = `${monthNum === 12 ? year + 1 : year}-${String(monthNum === 12 ? 1 : monthNum + 1).padStart(2, "0")}-01`;
   const { data } = await supabase
     .from("transactions")
-    .select("*, category:categories(*)")
+    .select("*, category:categories(*), pocket:pockets(*)")
     .gte("date", start)
     .lt("date", end)
     .order("date", { ascending: false });
@@ -66,15 +92,6 @@ export async function getBudgets(month = currentMonth()): Promise<Budget[]> {
     .select("*, category:categories(*)")
     .eq("month", month);
   return (data as Budget[] | null) ?? [];
-}
-
-export async function getSettlements(): Promise<Settlement[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("settlements")
-    .select("*")
-    .order("date", { ascending: false });
-  return data ?? [];
 }
 
 export async function getGoals(): Promise<Goal[]> {
@@ -141,60 +158,21 @@ export async function getBills(): Promise<BillWithStatus[]> {
 
 export type Contribution = {
   profile: Profile;
-  target: number;
   paid: number;
 };
 
 export async function getContributions(
   month = currentMonth()
-): Promise<{ contributions: Contribution[]; totalShared: number }> {
+): Promise<{ contributions: Contribution[]; total: number }> {
   const [profiles, transactions] = await Promise.all([getProfiles(), getMonthTransactions(month)]);
-  const shared = transactions.filter((t) => t.split_type === "shared");
-  const totalShared = shared.reduce((sum, t) => sum + t.amount, 0);
-  const fallbackShare = profiles.length ? 100 / profiles.length : 0;
+  const expenses = transactions.filter((t) => t.category?.type !== "income");
+  const total = expenses.reduce((sum, t) => sum + t.amount, 0);
 
-  const contributions = profiles.map((profile) => {
-    let target = 0;
-    let paid = 0;
-    for (const t of shared) {
-      const share = t.split_ratio?.[profile.id] ?? fallbackShare;
-      target += t.amount * (share / 100);
-      if (t.paid_by === profile.id) paid += t.amount;
-    }
-    return { profile, target, paid };
-  });
+  const contributions = profiles.map((profile) => ({
+    profile,
+    paid: expenses.filter((t) => t.paid_by === profile.id).reduce((sum, t) => sum + t.amount, 0),
+  }));
 
-  return { contributions, totalShared };
+  return { contributions, total };
 }
 
-export type Balance = {
-  net: number; // positive: profiles[1] owes profiles[0]; negative: profiles[0] owes profiles[1]
-  profiles: Profile[];
-};
-
-export async function getBalance(): Promise<Balance> {
-  const [profiles, transactions, settlements] = await Promise.all([
-    getProfiles(),
-    getTransactions(),
-    getSettlements(),
-  ]);
-
-  if (profiles.length < 2) return { net: 0, profiles };
-  const [a, b] = profiles;
-  let net = 0;
-
-  for (const t of transactions) {
-    if (t.split_type !== "shared") continue;
-    const payerShare = t.split_ratio?.[t.paid_by] ?? 50;
-    const otherShare = t.amount * ((100 - payerShare) / 100);
-    if (t.paid_by === a.id) net += otherShare;
-    else if (t.paid_by === b.id) net -= otherShare;
-  }
-
-  for (const s of settlements) {
-    if (s.from_user === b.id && s.to_user === a.id) net -= s.amount;
-    else if (s.from_user === a.id && s.to_user === b.id) net += s.amount;
-  }
-
-  return { net, profiles };
-}

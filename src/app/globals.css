@@ -104,43 +104,43 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0) !important;
-  --foreground: oklch(0.985 0 0) !important;
-  --card: oklch(0.205 0 0) !important;
-  --card-foreground: oklch(0.985 0 0) !important;
-  --popover: oklch(0.205 0 0) !important;
-  --popover-foreground: oklch(0.985 0 0) !important;
-  --primary: #5b93f5 !important;
-  --primary-foreground: #051335 !important;
-  --secondary: oklch(0.269 0 0) !important;
-  --secondary-foreground: oklch(0.985 0 0) !important;
-  --muted: oklch(0.269 0 0) !important;
-  --muted-foreground: oklch(0.708 0 0) !important;
-  --accent: #16264d !important;
-  --accent-foreground: #a9c5fb !important;
-  --destructive: oklch(0.704 0.191 22.216) !important;
-  --border: oklch(1 0 0 / 10%) !important;
-  --input: oklch(1 0 0 / 15%) !important;
-  --ring: #5b93f5 !important;
-  --chart-1: #3987e5 !important;
-  --chart-2: #199e70 !important;
-  --chart-3: #c98500 !important;
-  --chart-4: #008300 !important;
-  --chart-5: #9085e9 !important;
-  --chart-6: #e66767 !important;
-  --chart-7: #d55181 !important;
-  --chart-8: #d95926 !important;
-  --good: #0ca30c !important;
-  --warning: #fab219 !important;
-  --critical: #d03b3b !important;
-  --sidebar: oklch(0.205 0 0) !important;
-  --sidebar-foreground: oklch(0.985 0 0) !important;
-  --sidebar-primary: #5b93f5 !important;
-  --sidebar-primary-foreground: #051335 !important;
-  --sidebar-accent: #16264d !important;
-  --sidebar-accent-foreground: #a9c5fb !important;
-  --sidebar-border: oklch(1 0 0 / 10%) !important;
-  --sidebar-ring: #5b93f5 !important;
+  --background: #0a0a12 !important;
+  --foreground: #f3f4f8 !important;
+  --card: #14151f !important;
+  --card-foreground: #f3f4f8 !important;
+  --popover: #16171f !important;
+  --popover-foreground: #f3f4f8 !important;
+  --primary: #8b5cf6 !important;
+  --primary-foreground: #ffffff !important;
+  --secondary: #1c1d2a !important;
+  --secondary-foreground: #f3f4f8 !important;
+  --muted: #1c1d2a !important;
+  --muted-foreground: #9497ad !important;
+  --accent: #241f3d !important;
+  --accent-foreground: #c4b5fd !important;
+  --destructive: #ff6b81 !important;
+  --border: #ffffff14 !important;
+  --input: #ffffff1f !important;
+  --ring: #8b5cf6 !important;
+  --chart-1: #4f8cff !important;
+  --chart-2: #16d19b !important;
+  --chart-3: #f2b13d !important;
+  --chart-4: #22c55e !important;
+  --chart-5: #a78bfa !important;
+  --chart-6: #fb7185 !important;
+  --chart-7: #ec4899 !important;
+  --chart-8: #fb923c !important;
+  --good: #22c55e !important;
+  --warning: #f2b13d !important;
+  --critical: #fb7185 !important;
+  --sidebar: #0d0e17 !important;
+  --sidebar-foreground: #f3f4f8 !important;
+  --sidebar-primary: #8b5cf6 !important;
+  --sidebar-primary-foreground: #ffffff !important;
+  --sidebar-accent: #241f3d !important;
+  --sidebar-accent-foreground: #c4b5fd !important;
+  --sidebar-border: #ffffff14 !important;
+  --sidebar-ring: #8b5cf6 !important;
 }
 
 /*
@@ -171,4 +171,18 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Glassmorphism surface for hero/feature cards — not applied to every Card,
+   only where the NEXO-style translucent look is wanted (dashboard hub,
+   pocket cards). Base surfaces (popovers, sheets) stay opaque for legibility. */
+.glass {
+  background: color-mix(in oklch, var(--card) 55%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in oklch, white 8%, transparent);
+}
+
+.dark .glass {
+  background: color-mix(in oklch, var(--card) 45%, transparent);
 }

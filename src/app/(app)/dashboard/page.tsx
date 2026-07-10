@@ -1,112 +1,140 @@
 import Link from "next/link";
-import { ArrowRight, CircleAlert, Clock, FileText, HandCoins } from "lucide-react";
+import { ArrowRight, CircleAlert, Clock, FileText, Sparkles, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryBars } from "@/components/category-bars";
 import { TrendChart } from "@/components/trend-chart";
 import { TransactionRow } from "@/components/transaction-row";
+import { MoneyHub } from "@/components/money-hub";
+import { PocketCards } from "@/components/pocket-cards";
 import {
   getBills,
-  getContributions,
+  getCurrentProfile,
+  getGoals,
   getMonthTransactions,
   getMonthlySpend,
+  getPocketBalances,
   getProfiles,
   getTransactions,
 } from "@/lib/data";
 import { formatAmount } from "@/lib/format";
 
 export default async function DashboardPage() {
-  const [monthTransactions, { contributions, totalShared }, monthlySpend, recent, profiles, bills] =
-    await Promise.all([
-      getMonthTransactions(),
-      getContributions(),
-      getMonthlySpend(),
-      getTransactions(5),
-      getProfiles(),
-      getBills(),
-    ]);
+  const [
+    monthTransactions,
+    monthlySpend,
+    recent,
+    profiles,
+    bills,
+    goals,
+    pockets,
+    currentProfile,
+  ] = await Promise.all([
+    getMonthTransactions(),
+    getMonthlySpend(),
+    getTransactions(5),
+    getProfiles(),
+    getBills(),
+    getGoals(),
+    getPocketBalances(),
+    getCurrentProfile(),
+  ]);
 
-  const personalSpend = monthTransactions
-    .filter((t) => t.category?.type !== "income" && t.split_type === "personal")
+  const total = pockets.reduce((sum, p) => sum + p.balance, 0);
+  const pendingBills = bills.filter((bill) => bill.status !== "paid");
+
+  const jointPocket = pockets.find((p) => p.name.toLowerCase().includes("joint"));
+  const jointUpcoming = jointPocket
+    ? pendingBills
+        .filter((b) => b.pocket_id === jointPocket.id)
+        .reduce((sum, b) => sum + b.amount, 0)
+    : 0;
+  const jointProjected = jointPocket ? jointPocket.balance - jointUpcoming : null;
+  const lowBalanceAlert =
+    jointPocket && jointProjected !== null && jointProjected < 500 && jointUpcoming > 0;
+
+  const monthSpend = monthTransactions
+    .filter((t) => t.category?.type !== "income")
     .reduce((sum, t) => sum + t.amount, 0);
+  const prevMonths = monthlySpend.slice(0, -1).filter((m) => m.total > 0);
+  const avgPrev = prevMonths.length
+    ? prevMonths.reduce((s, m) => s + m.total, 0) / prevMonths.length
+    : null;
+  const savingsOpportunity =
+    avgPrev !== null && monthSpend < avgPrev ? avgPrev - monthSpend : null;
 
-  const pendingBills = bills.filter((bill) => bill.status !== "paid").slice(0, 3);
+  const insights: { icon: typeof TrendingUp; text: string }[] = [];
+  if (savingsOpportunity && savingsOpportunity > 10) {
+    insights.push({
+      icon: TrendingUp,
+      text: `Tu dépenses ${formatAmount(savingsOpportunity)} de moins que d'habitude ce mois-ci — l'occasion d'épargner la différence.`,
+    });
+  }
+  const overdueBills = pendingBills.filter((b) => b.status === "overdue");
+  if (overdueBills.length > 0) {
+    insights.push({
+      icon: CircleAlert,
+      text: `${overdueBills.length} facture${overdueBills.length > 1 ? "s" : ""} en retard : ${overdueBills.map((b) => b.name).join(", ")}.`,
+    });
+  } else if (pendingBills.filter((b) => b.status === "upcoming").length > 0) {
+    const upcoming = pendingBills.filter((b) => b.status === "upcoming");
+    insights.push({
+      icon: Clock,
+      text: `${upcoming.length} prélèvement${upcoming.length > 1 ? "s" : ""} important${upcoming.length > 1 ? "s" : ""} à venir (${formatAmount(upcoming.reduce((s, b) => s + b.amount, 0))}).`,
+    });
+  }
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Aperçu</h1>
-        <p className="text-sm text-muted-foreground">Le compte commun, en un coup d&apos;œil.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Bonjour {currentProfile?.display_name ?? ""} 👋
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Tout votre argent, organisé pour vos objectifs de vie.
+        </p>
       </div>
 
-      <Card className="relative overflow-hidden border-none bg-primary text-primary-foreground shadow-md">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-10 -top-16 size-56 rounded-full bg-white/10"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-20 -left-10 size-48 rounded-full bg-white/5"
-        />
-        <CardContent className="relative flex flex-col gap-1">
-          <span className="flex items-center gap-1.5 text-xs font-medium text-primary-foreground/70">
-            <HandCoins className="size-3.5" />
-            Dépenses partagées ce mois-ci
-          </span>
-          <span className="text-4xl font-semibold tracking-tight tabular-nums">
-            {formatAmount(totalShared)}
-          </span>
-          <span className="text-sm text-primary-foreground/80">
-            {contributions
-              .map((c) => `${c.profile.display_name} : ${formatAmount(c.paid)}`)
-              .join(" · ")}
-          </span>
-          <Link
-            href="/settle"
-            className="mt-3 inline-flex w-fit items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition-colors hover:bg-white/25"
-          >
-            Voir les contributions
-            <ArrowRight className="size-3.5" />
-          </Link>
-        </CardContent>
-      </Card>
+      <MoneyHub pockets={pockets} total={total} />
+      <PocketCards pockets={pockets} />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Dépenses personnelles
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{formatAmount(personalSpend)}</p>
-            <p className="text-xs text-muted-foreground">Prêts, assurances à ton nom...</p>
+      {lowBalanceAlert && jointPocket && (
+        <Card className="border-warning/30 bg-warning/5">
+          <CardContent className="flex items-start gap-3 py-4">
+            <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
+            <div>
+              <p className="text-sm font-medium">
+                {jointPocket.name} passera à {formatAmount(jointProjected!)} après les prélèvements
+                à venir
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {formatAmount(jointUpcoming)} de factures pas encore payées sur cette poche.
+              </p>
+            </div>
           </CardContent>
         </Card>
-        <Link href="/bills">
-          <Card className="h-full transition-shadow hover:shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Factures à payer
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold tabular-nums">
-                {formatAmount(pendingBills.reduce((s, bill) => s + bill.amount, 0))}
-              </p>
-              {bills.some((bill) => bill.status === "overdue") ? (
-                <p className="flex items-center gap-1 text-xs text-critical">
-                  <CircleAlert className="size-3" />
-                  En retard
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  {pendingBills.length} restant{pendingBills.length > 1 ? "es" : "e"}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
+      )}
+
+      {insights.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="size-4 text-primary" />
+              Conseils
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {insights.map((insight, i) => {
+              const Icon = insight.icon;
+              return (
+                <div key={i} className="flex items-start gap-3 text-sm">
+                  <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <p>{insight.text}</p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {pendingBills.length > 0 && (
         <Card>
@@ -117,7 +145,7 @@ export default async function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent className="divide-y">
-            {pendingBills.map((bill) => (
+            {pendingBills.slice(0, 3).map((bill) => (
               <div key={bill.id} className="flex items-center gap-3 py-2">
                 <div
                   className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
@@ -136,6 +164,38 @@ export default async function DashboardPage() {
                 </span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {goals.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Objectifs en cours</CardTitle>
+            <Link href="/budgets" className="text-xs text-muted-foreground hover:underline">
+              Voir tous
+            </Link>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {goals.slice(0, 4).map((g) => {
+              const pct = Math.min(100, Math.round((g.current_amount / g.target_amount) * 100));
+              return (
+                <div key={g.id} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>{g.name}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {formatAmount(g.current_amount)} / {formatAmount(g.target_amount)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-chart-5"
+                      style={{ width: `${Math.max(4, pct)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -176,6 +236,14 @@ export default async function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <Link
+        href="/settle"
+        className="flex items-center justify-center gap-1 rounded-xl border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted"
+      >
+        Qui a payé quoi ce mois-ci
+        <ArrowRight className="size-3.5" />
+      </Link>
     </div>
   );
 }

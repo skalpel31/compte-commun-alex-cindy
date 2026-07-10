@@ -1,10 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryManager } from "@/components/category-manager";
+import { PocketManager } from "@/components/pocket-manager";
 import { NotificationSettings } from "@/components/notification-settings";
-import { getCategories, getProfiles } from "@/lib/data";
+import { getCategories, getPockets, getProfiles } from "@/lib/data";
 
 export default async function SettingsPage() {
-  const [categories, profiles] = await Promise.all([getCategories(), getProfiles()]);
+  const [categories, profiles, pockets] = await Promise.all([
+    getCategories(),
+    getProfiles(),
+    getPockets(),
+  ]);
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-4">
@@ -25,10 +30,19 @@ export default async function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Poches &amp; répartition des revenus</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PocketManager pockets={pockets} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Catégories</CardTitle>
         </CardHeader>
         <CardContent>
-          <CategoryManager categories={categories} />
+          <CategoryManager categories={categories} pockets={pockets} />
         </CardContent>
       </Card>
 

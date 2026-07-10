@@ -16,7 +16,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { deleteCategory, upsertCategory } from "@/lib/actions";
 import { CategoryIcon, categoryBg } from "@/lib/category-style";
-import type { Category } from "@/lib/types";
+import type { Category, Pocket } from "@/lib/types";
 
 const CHART_SLOTS = [
   "chart-1",
@@ -41,13 +41,13 @@ const ICON_LABELS: Record<string, string> = {
 };
 
 const ICON_OPTIONS = Object.keys(ICON_LABELS);
-const TYPE_LABELS = { expense: "Dépense", income: "Revenu" } as const;
 
-function NewCategorySheet({ nextColor }: { nextColor: string }) {
+function NewCategorySheet({ nextColor, pockets }: { nextColor: string; pockets: Pocket[] }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState(ICON_OPTIONS[0]);
   const [type, setType] = useState<"expense" | "income">("expense");
+  const [pocketId, setPocketId] = useState<string>("none");
   const [pending, startTransition] = useTransition();
 
   function handleCreate() {
@@ -57,7 +57,13 @@ function NewCategorySheet({ nextColor }: { nextColor: string }) {
     }
     startTransition(async () => {
       try {
-        await upsertCategory({ name: name.trim(), icon, color: nextColor, type });
+        await upsertCategory({
+          name: name.trim(),
+          icon,
+          color: nextColor,
+          type,
+          default_pocket_id: pocketId === "none" ? null : pocketId,
+        });
         toast.success("Catégorie créée");
         setName("");
         setOpen(false);
@@ -107,7 +113,9 @@ function NewCategorySheet({ nextColor }: { nextColor: string }) {
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue>
-                      {(value: keyof typeof TYPE_LABELS) => TYPE_LABELS[value]}
+                      {(value: "expense" | "income") =>
+                        value === "income" ? "Revenu" : "Dépense"
+                      }
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -117,6 +125,31 @@ function NewCategorySheet({ nextColor }: { nextColor: string }) {
                 </Select>
               </div>
             </div>
+            {type === "expense" && (
+              <div className="flex flex-col gap-2">
+                <Label>Poche par défaut</Label>
+                <Select value={pocketId} onValueChange={(v) => setPocketId(v ?? "none")}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Aucune">
+                      {(value: string) =>
+                        value === "none" ? "Aucune" : pockets.find((p) => p.id === value)?.name
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucune</SelectItem>
+                    {pockets.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Les dépenses de cette catégorie viendront de cette poche par défaut.
+                </p>
+              </div>
+            )}
           </div>
           <SheetFooter>
             <Button onClick={handleCreate} disabled={pending}>
@@ -129,7 +162,13 @@ function NewCategorySheet({ nextColor }: { nextColor: string }) {
   );
 }
 
-export function CategoryManager({ categories }: { categories: Category[] }) {
+export function CategoryManager({
+  categories,
+  pockets,
+}: {
+  categories: Category[];
+  pockets: Pocket[];
+}) {
   const [pending, startTransition] = useTransition();
 
   function handleDelete(id: string) {
@@ -152,12 +191,16 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col divide-y">
         {categories.map((c) => {
+          const pocket = pockets.find((p) => p.id === c.default_pocket_id);
           return (
             <div key={c.id} className="flex items-center gap-3 py-2">
               <div className={`flex size-8 items-center justify-center rounded-full text-white ${categoryBg(c.color)}`}>
                 <CategoryIcon icon={c.icon} className="size-4" />
               </div>
-              <span className="flex-1 text-sm">{c.name}</span>
+              <div className="flex-1">
+                <p className="text-sm">{c.name}</p>
+                {pocket && <p className="text-xs text-muted-foreground">{pocket.name}</p>}
+              </div>
               <span className="text-xs text-muted-foreground">
                 {c.type === "income" ? "Revenu" : "Dépense"}
               </span>
@@ -174,7 +217,7 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
           );
         })}
       </div>
-      <NewCategorySheet nextColor={nextColor} />
+      <NewCategorySheet nextColor={nextColor} pockets={pockets} />
     </div>
   );
 }

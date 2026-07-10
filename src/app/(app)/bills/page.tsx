@@ -1,14 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BillRow } from "@/components/bill-row";
 import { NewBillSheet } from "@/components/bill-sheet";
-import { getBills, getCategories, getProfiles } from "@/lib/data";
+import { getBills, getCategories, getPockets, getProfiles } from "@/lib/data";
 import { formatAmount } from "@/lib/format";
 
 export default async function BillsPage() {
-  const [bills, categories, profiles] = await Promise.all([
+  const [bills, categories, profiles, pockets] = await Promise.all([
     getBills(),
     getCategories(),
     getProfiles(),
+    getPockets(),
   ]);
   const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.amount, 0);
   const overdueCount = bills.filter((b) => b.status === "overdue").length;
@@ -22,7 +23,7 @@ export default async function BillsPage() {
             Vos charges récurrentes, avec rappel avant échéance.
           </p>
         </div>
-        <NewBillSheet categories={categories} profiles={profiles} />
+        <NewBillSheet categories={categories} profiles={profiles} pockets={pockets} />
       </div>
 
       <Card>
@@ -49,7 +50,7 @@ export default async function BillsPage() {
             </p>
           ) : (
             bills.map((b) => (
-              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} />
+              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} />
             ))
           )}
         </CardContent>

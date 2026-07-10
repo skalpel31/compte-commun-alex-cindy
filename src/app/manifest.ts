@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Suivi des dépenses, budgets, factures et répartition du compte commun.",
     start_url: "/dashboard",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#2554d6",
+    background_color: "#0a0a12",
+    theme_color: "#8b5cf6",
     orientation: "portrait",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

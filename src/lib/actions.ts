@@ -49,14 +49,45 @@ export type TransactionInput = {
   date: string;
   category_id: string;
   paid_by: string;
-  split_type: "shared" | "personal";
-  split_ratio: Record<string, number>;
+  pocket_id: string | null;
 };
 
 export async function createTransaction(input: TransactionInput) {
   const supabase = await createClient();
-  const { error } = await supabase.from("transactions").insert(input);
-  if (error) throw new Error(error.message);
+
+  const { data: category } = await supabase
+    .from("categories")
+    .select("type, default_pocket_id")
+    .eq("id", input.category_id)
+    .single();
+
+  const base = {
+    amount: input.amount,
+    description: input.description,
+    date: input.date,
+    category_id: input.category_id,
+    paid_by: input.paid_by,
+    split_type: "shared" as const,
+    split_ratio: {},
+  };
+
+  if (category?.type === "income") {
+    const { data: pockets } = await supabase.from("pockets").select("id, allocation_pct");
+    const rows = (pockets ?? [])
+      .filter((p) => p.allocation_pct > 0)
+      .map((p) => ({
+        ...base,
+        amount: Math.round(input.amount * (p.allocation_pct / 100) * 100) / 100,
+        pocket_id: p.id,
+      }));
+    const { error } = await supabase.from("transactions").insert(rows);
+    if (error) throw new Error(error.message);
+  } else {
+    const pocket_id = input.pocket_id ?? category?.default_pocket_id ?? null;
+    const { error } = await supabase.from("transactions").insert({ ...base, pocket_id });
+    if (error) throw new Error(error.message);
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/transactions");
   revalidatePath("/budgets");
@@ -101,25 +132,13 @@ export async function deleteBudget(id: string) {
   revalidatePath("/budgets");
 }
 
-export async function createSettlement(input: {
-  from_user: string;
-  to_user: string;
-  amount: number;
-  note?: string;
-}) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("settlements").insert(input);
-  if (error) throw new Error(error.message);
-  revalidatePath("/settle");
-  revalidatePath("/dashboard");
-}
-
 export type CategoryInput = {
   id?: string;
   name: string;
   icon: string;
   color: string;
   type: "expense" | "income";
+  default_pocket_id: string | null;
 };
 
 export async function upsertCategory(input: CategoryInput) {
@@ -143,6 +162,7 @@ export type GoalInput = {
   name: string;
   target_amount: number;
   target_date: string | null;
+  pocket_id: string | null;
 };
 
 export async function createGoal(input: GoalInput) {
@@ -174,7 +194,7 @@ export type BillInput = {
   due_day: number;
   category_id: string | null;
   default_payer: string | null;
-  split_type: "shared" | "personal";
+  pocket_id: string | null;
   autopay: boolean;
 };
 
@@ -218,20 +238,13 @@ export async function markBillPaid(billId: string, userId: string) {
 
   const { data: bill, error: billError } = await supabase
     .from("bills")
-    .select("name, amount, category_id, split_type")
+    .select("name, amount, category_id, pocket_id, category:categories(default_pocket_id)")
     .eq("id", billId)
     .single();
   if (billError) throw new Error(billError.message);
 
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
-    .select("id")
-    .neq("id", userId);
-  if (profilesError) throw new Error(profilesError.message);
-  const other = profiles?.[0];
-
-  const split_ratio =
-    bill.split_type === "personal" || !other ? { [userId]: 100 } : { [userId]: 50, [other.id]: 50 };
+  const category = bill.category as unknown as { default_pocket_id: string | null } | null;
+  const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
 
   const { data: transaction, error: txError } = await supabase
     .from("transactions")
@@ -241,8 +254,9 @@ export async function markBillPaid(billId: string, userId: string) {
       date: new Date().toISOString().slice(0, 10),
       category_id: bill.category_id,
       paid_by: userId,
-      split_type: bill.split_type,
-      split_ratio,
+      pocket_id,
+      split_type: "shared",
+      split_ratio: {},
     })
     .select("id")
     .single();
@@ -305,4 +319,12 @@ export async function deleteGoal(id: string) {
   const { error } = await supabase.from("goals").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/budgets");
+}
+
+export async function updatePocketAllocation(id: string, allocation_pct: number) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("pockets").update({ allocation_pct }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
 }

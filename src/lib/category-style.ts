@@ -5,9 +5,12 @@ import {
   Home,
   MoreHorizontal,
   PartyPopper,
+  PiggyBank,
   Repeat,
   ShoppingCart,
   Tag,
+  User,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +24,9 @@ const ICONS: Record<string, LucideIcon> = {
   "heart-pulse": Heart,
   "more-horizontal": MoreHorizontal,
   wallet: Wallet,
+  user: User,
+  users: Users,
+  "piggy-bank": PiggyBank,
 };
 
 export function categoryIcon(icon: string | null): LucideIcon {

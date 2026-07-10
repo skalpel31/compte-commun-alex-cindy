@@ -9,7 +9,7 @@ import { EditBillSheet } from "@/components/bill-sheet";
 import { deleteBill, markBillPaid, markBillUnpaid } from "@/lib/actions";
 import { CategoryIcon } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
-import type { BillWithStatus, Category, Profile } from "@/lib/types";
+import type { BillWithStatus, Category, Pocket, Profile } from "@/lib/types";
 
 const STATUS_META = {
   paid: { label: "Payée", className: "text-good", Icon: Check },
@@ -22,10 +22,12 @@ export function BillRow({
   bill,
   profiles,
   categories,
+  pockets,
 }: {
   bill: BillWithStatus;
   profiles: Profile[];
   categories: Category[];
+  pockets: Pocket[];
 }) {
   const [pending, startTransition] = useTransition();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -33,6 +35,7 @@ export function BillRow({
   const meta = STATUS_META[bill.status];
   const StatusIcon = meta.Icon;
   const payerName = profiles.find((p) => p.id === bill.default_payer)?.display_name;
+  const pocketName = pockets.find((p) => p.id === bill.pocket_id)?.name;
 
   function pay(userId: string) {
     setPickerOpen(false);
@@ -94,7 +97,7 @@ export function BillRow({
                 : `${meta.label} · le ${bill.due_day}`}
             </span>
             {payerName && ` · ${payerName}`}
-            {bill.split_type === "personal" && " · personnel"}
+            {pocketName && ` · ${pocketName}`}
           </p>
         </div>
       </button>
@@ -142,6 +145,7 @@ export function BillRow({
         bill={bill}
         categories={categories}
         profiles={profiles}
+        pockets={pockets}
         open={editOpen}
         onOpenChange={setEditOpen}
       />

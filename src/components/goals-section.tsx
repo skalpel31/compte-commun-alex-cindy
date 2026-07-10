@@ -7,10 +7,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { contributeToGoal, createGoal, deleteGoal } from "@/lib/actions";
 import { formatAmount } from "@/lib/format";
-import type { Goal } from "@/lib/types";
+import type { Goal, Pocket } from "@/lib/types";
 
 function GoalCard({ goal }: { goal: Goal }) {
   const [contribution, setContribution] = useState("");
@@ -87,11 +94,12 @@ function GoalCard({ goal }: { goal: Goal }) {
   );
 }
 
-function NewGoalSheet() {
+function NewGoalSheet({ pockets }: { pockets: Pocket[] }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [date, setDate] = useState("");
+  const [pocketId, setPocketId] = useState("none");
   const [pending, startTransition] = useTransition();
 
   function handleCreate() {
@@ -102,7 +110,12 @@ function NewGoalSheet() {
     }
     startTransition(async () => {
       try {
-        await createGoal({ name: name.trim(), target_amount: targetAmount, target_date: date || null });
+        await createGoal({
+          name: name.trim(),
+          target_amount: targetAmount,
+          target_date: date || null,
+          pocket_id: pocketId === "none" ? null : pocketId,
+        });
         toast.success("Objectif créé");
         setName("");
         setTarget("");
@@ -149,6 +162,26 @@ function NewGoalSheet() {
               <Label htmlFor="goal-date">Date cible (optionnel)</Label>
               <Input id="goal-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
+            <div className="flex flex-col gap-2">
+              <Label>Poche liée (optionnel)</Label>
+              <Select value={pocketId} onValueChange={(v) => setPocketId(v ?? "none")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Aucune">
+                    {(value: string) =>
+                      value === "none" ? "Aucune" : pockets.find((p) => p.id === value)?.name
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucune</SelectItem>
+                  {pockets.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <SheetFooter>
             <Button onClick={handleCreate} disabled={pending}>
@@ -161,12 +194,12 @@ function NewGoalSheet() {
   );
 }
 
-export function GoalsSection({ goals }: { goals: Goal[] }) {
+export function GoalsSection({ goals, pockets }: { goals: Goal[]; pockets: Pocket[] }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-base">Objectifs d&apos;épargne</CardTitle>
-        <NewGoalSheet />
+        <NewGoalSheet pockets={pockets} />
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {goals.length === 0 ? (

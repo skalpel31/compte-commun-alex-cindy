@@ -4,12 +4,23 @@ export type Profile = {
   avatar_url: string | null;
 };
 
+export type Pocket = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  owner_id: string | null;
+  allocation_pct: number;
+  sort_order: number;
+};
+
 export type Category = {
   id: string;
   name: string;
   icon: string | null;
   color: string | null;
   type: "expense" | "income";
+  default_pocket_id: string | null;
 };
 
 export type Transaction = {
@@ -20,12 +31,14 @@ export type Transaction = {
   description: string | null;
   category_id: string | null;
   paid_by: string;
+  pocket_id: string | null;
   split_type: "shared" | "personal";
   split_ratio: Record<string, number>;
   is_recurring: boolean;
   recurring_rule: string | null;
   created_at: string;
   category: Category | null;
+  pocket: Pocket | null;
 };
 
 export type Budget = {
@@ -39,22 +52,13 @@ export type Budget = {
   category: Category | null;
 };
 
-export type Settlement = {
-  id: string;
-  from_user: string;
-  to_user: string;
-  amount: number;
-  date: string;
-  note: string | null;
-  created_at: string;
-};
-
 export type Goal = {
   id: string;
   name: string;
   target_amount: number;
   current_amount: number;
   target_date: string | null;
+  pocket_id: string | null;
 };
 
 export type Bill = {
@@ -64,6 +68,7 @@ export type Bill = {
   due_day: number;
   category_id: string | null;
   default_payer: string | null;
+  pocket_id: string | null;
   split_type: "shared" | "personal";
   autopay: boolean;
   active: boolean;
