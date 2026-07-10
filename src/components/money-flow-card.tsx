@@ -1,4 +1,6 @@
-import { Card, CardContent } from "@/components/ui/card";
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
 import type { IncomeSource } from "@/lib/data";
@@ -8,13 +10,28 @@ export function MoneyFlowCard({
   incomeSources,
   incomeTotal,
   pockets,
+  showEditLink = true,
 }: {
   incomeSources: IncomeSource[];
   incomeTotal: number;
   pockets: Pocket[];
+  showEditLink?: boolean;
 }) {
   return (
     <Card className="glass">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base">Flux d&apos;argent du mois</CardTitle>
+        {showEditLink && (
+          <Button
+            size="sm"
+            variant="secondary"
+            nativeButton={false}
+            render={<Link href="/flux-argent" />}
+          >
+            Modifier la répartition
+          </Button>
+        )}
+      </CardHeader>
       <CardContent className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_auto_1fr] md:items-center">
         <div className="flex flex-col gap-2">
           <p className="text-xs text-muted-foreground">Revenus du mois</p>

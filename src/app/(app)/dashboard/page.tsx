@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, CircleAlert, Clock, FileText, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CategoryBars } from "@/components/category-bars";
-import { TrendChart } from "@/components/trend-chart";
-import { TransactionRow } from "@/components/transaction-row";
-import { PocketCards } from "@/components/pocket-cards";
 import { MoneyFlowCard } from "@/components/money-flow-card";
+import { AccountsCard } from "@/components/accounts-card";
+import { AdvisorCard, type AdvisorItem } from "@/components/advisor-card";
 import { PocketUsageDonut } from "@/components/pocket-usage-donut";
 import { AllocationRules } from "@/components/allocation-rules";
+import { RecentExpensesTable } from "@/components/recent-expenses-table";
+import { SmartAlertCard } from "@/components/smart-alert-card";
 import {
   getBills,
   getCategories,
@@ -15,9 +15,7 @@ import {
   getGoals,
   getMonthIncome,
   getMonthTransactions,
-  getMonthlySpend,
   getPocketBalances,
-  getProfiles,
   getTransactions,
 } from "@/lib/data";
 import { formatAmount } from "@/lib/format";
@@ -25,9 +23,7 @@ import { formatAmount } from "@/lib/format";
 export default async function DashboardPage() {
   const [
     monthTransactions,
-    monthlySpend,
     recent,
-    profiles,
     bills,
     goals,
     pockets,
@@ -36,9 +32,7 @@ export default async function DashboardPage() {
     categories,
   ] = await Promise.all([
     getMonthTransactions(),
-    getMonthlySpend(),
-    getTransactions(5),
-    getProfiles(),
+    getTransactions(6),
     getBills(),
     getGoals(),
     getPocketBalances(),
@@ -47,14 +41,10 @@ export default async function DashboardPage() {
     getCategories(),
   ]);
 
-  const total = pockets.reduce((sum, p) => sum + p.balance, 0);
   const pendingBills = bills.filter((bill) => bill.status !== "paid");
-
   const jointPocket = pockets.find((p) => p.name.toLowerCase().includes("joint"));
   const jointUpcoming = jointPocket
-    ? pendingBills
-        .filter((b) => b.pocket_id === jointPocket.id)
-        .reduce((sum, b) => sum + b.amount, 0)
+    ? pendingBills.filter((b) => b.pocket_id === jointPocket.id).reduce((s, b) => s + b.amount, 0)
     : 0;
   const jointProjected = jointPocket ? jointPocket.balance - jointUpcoming : null;
   const lowBalanceAlert =
@@ -74,36 +64,64 @@ export default async function DashboardPage() {
       .reduce((sum, t) => sum + t.amount, 0),
   }));
 
-  const prevMonths = monthlySpend.slice(0, -1).filter((m) => m.total > 0);
-  const avgPrev = prevMonths.length
-    ? prevMonths.reduce((s, m) => s + m.total, 0) / prevMonths.length
-    : null;
-  const savingsOpportunity =
-    avgPrev !== null && monthSpend < avgPrev ? avgPrev - monthSpend : null;
+  const alertBills = pendingBills
+    .filter((b) => b.status === "overdue" || b.status === "upcoming")
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .slice(0, 3);
 
-  const insights: { icon: typeof TrendingUp; text: string }[] = [];
-  if (savingsOpportunity && savingsOpportunity > 10) {
-    insights.push({
-      icon: TrendingUp,
-      text: `Tu dépenses ${formatAmount(savingsOpportunity)} de moins que d'habitude ce mois-ci — l'occasion d'épargner la différence.`,
+  const alertHeadline = lowBalanceAlert
+    ? `Votre ${jointPocket!.name.toLowerCase()} passera sous 500 € après les prélèvements à venir.`
+    : alertBills.length > 0
+      ? `${alertBills.length} prélèvement${alertBills.length > 1 ? "s" : ""} à venir sur les prochains jours.`
+      : null;
+
+  const misplaced = monthTransactions.filter(
+    (t) =>
+      t.category?.type === "expense" &&
+      t.category?.default_pocket_id &&
+      t.pocket_id &&
+      t.pocket_id !== t.category.default_pocket_id
+  );
+
+  const advisorItems: AdvisorItem[] = [];
+  if (jointPocket && jointPocket.balance > 200) {
+    const potential = Math.round(jointPocket.balance * 0.1);
+    if (potential >= 20) {
+      advisorItems.push({
+        icon: TrendingUp,
+        tone: "good",
+        text: `Vous pouvez épargner ${formatAmount(potential)} ce mois-ci sans impacter votre budget.`,
+        actionLabel: "Épargner maintenant",
+        actionHref: "/epargne",
+      });
+    }
+  }
+  if (alertBills.length > 0) {
+    const lastDay = new Date(alertBills[alertBills.length - 1].dueDate).getDate();
+    advisorItems.push({
+      icon: Sparkles,
+      tone: "warning",
+      text: `${alertBills.length} prélèvement${alertBills.length > 1 ? "s" : ""} important${alertBills.length > 1 ? "s" : ""} à venir d'ici le ${lastDay}.`,
+      actionLabel: "Voir le calendrier",
+      actionHref: "/alertes",
     });
   }
-  const overdueBills = pendingBills.filter((b) => b.status === "overdue");
-  if (overdueBills.length > 0) {
-    insights.push({
-      icon: CircleAlert,
-      text: `${overdueBills.length} facture${overdueBills.length > 1 ? "s" : ""} en retard : ${overdueBills.map((b) => b.name).join(", ")}.`,
-    });
-  } else if (pendingBills.filter((b) => b.status === "upcoming").length > 0) {
-    const upcoming = pendingBills.filter((b) => b.status === "upcoming");
-    insights.push({
-      icon: Clock,
-      text: `${upcoming.length} prélèvement${upcoming.length > 1 ? "s" : ""} important${upcoming.length > 1 ? "s" : ""} à venir (${formatAmount(upcoming.reduce((s, b) => s + b.amount, 0))}).`,
+  if (misplaced.length >= 2) {
+    advisorItems.push({
+      icon: RefreshCw,
+      tone: "info",
+      text: "Vous utilisez souvent un compte perso pour des dépenses habituellement communes.",
+      actionLabel: "Voir les remboursements",
+      actionHref: "/settle",
     });
   }
+
+  const analyzedAt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(
+    new Date()
+  );
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4">
+    <div className="mx-auto flex max-w-7xl flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Bonjour {currentProfile?.display_name ?? ""} 👋
@@ -113,177 +131,94 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <MoneyFlowCard incomeSources={incomeSources} incomeTotal={incomeTotal} pockets={pockets} />
-
-      <div>
-        <p className="mb-2 text-sm text-muted-foreground">
-          Vos comptes · Solde total{" "}
-          <span className="font-medium text-foreground">{formatAmount(total)}</span>
-        </p>
-        <PocketCards pockets={pockets} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <MoneyFlowCard incomeSources={incomeSources} incomeTotal={incomeTotal} pockets={pockets} />
+        <AccountsCard pockets={pockets} />
       </div>
 
-      {lowBalanceAlert && jointPocket && (
-        <Card className="border-warning/30 bg-warning/5">
-          <CardContent className="flex items-start gap-3 py-4">
-            <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
-            <div>
-              <p className="text-sm font-medium">
-                {jointPocket.name} passera à {formatAmount(jointProjected!)} après les prélèvements
-                à venir
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {formatAmount(jointUpcoming)} de factures pas encore payées sur cette poche.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <AdvisorCard items={advisorItems} analyzedAt={analyzedAt} />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {insights.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="size-4 text-primary" />
-                Conseils
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {insights.map((insight, i) => {
-                const Icon = insight.icon;
-                return (
-                  <div key={i} className="flex items-start gap-3 text-sm">
-                    <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    <p>{insight.text}</p>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
-
-        {goals.length > 0 && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Objectifs en cours</CardTitle>
-              <Link href="/budgets" className="text-xs text-muted-foreground hover:underline">
-                Voir tous
-              </Link>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {goals.slice(0, 4).map((g) => {
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Objectifs en cours</CardTitle>
+            <Link href="/objectifs" className="text-xs text-muted-foreground hover:underline">
+              Voir tous
+            </Link>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {goals.length === 0 ? (
+              <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <Target className="size-4" />
+                Aucun objectif pour l&apos;instant.
+              </p>
+            ) : (
+              goals.slice(0, 4).map((g) => {
                 const pct = Math.min(100, Math.round((g.current_amount / g.target_amount) * 100));
                 return (
                   <div key={g.id} className="flex flex-col gap-1">
                     <div className="flex items-center justify-between text-sm">
-                      <span>{g.name}</span>
-                      <span className="text-xs text-muted-foreground tabular-nums">
+                      <span className="truncate">{g.name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                         {formatAmount(g.current_amount)} / {formatAmount(g.target_amount)}
                       </span>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-chart-5"
-                        style={{ width: `${Math.max(4, pct)}%` }}
-                      />
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-chart-5"
+                          style={{ width: `${Math.max(4, pct)}%` }}
+                        />
+                      </div>
+                      <span className="w-9 shrink-0 text-right text-xs font-medium text-muted-foreground">
+                        {pct}%
+                      </span>
                     </div>
                   </div>
                 );
-              })}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {pendingBills.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Prochaines factures</CardTitle>
-            <Link href="/bills" className="text-xs text-muted-foreground hover:underline">
-              Tout voir
-            </Link>
-          </CardHeader>
-          <CardContent className="divide-y">
-            {pendingBills.slice(0, 3).map((bill) => (
-              <div key={bill.id} className="flex items-center gap-3 py-2">
-                <div
-                  className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
-                    bill.status === "overdue" ? "bg-critical/10" : "bg-warning/10"
-                  }`}
-                >
-                  {bill.status === "overdue" ? (
-                    <CircleAlert className="size-4 text-critical" />
-                  ) : (
-                    <Clock className="size-4 text-warning" />
-                  )}
-                </div>
-                <span className="flex-1 truncate text-sm">{bill.name}</span>
-                <span className="shrink-0 text-sm font-medium tabular-nums">
-                  {formatAmount(bill.amount)}
-                </span>
-              </div>
-            ))}
+              })
+            )}
           </CardContent>
         </Card>
-      )}
+      </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Dépenses récentes</CardTitle>
+            <Link href="/transactions" className="text-xs text-muted-foreground hover:underline">
+              Voir toutes
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <RecentExpensesTable transactions={recent} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base">Règles de répartition</CardTitle>
+            <Link href="/budgets" className="text-xs text-muted-foreground hover:underline">
+              Voir toutes
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <AllocationRules categories={categories} pockets={pockets} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Utilisation des comptes</CardTitle>
+            <span className="text-xs text-muted-foreground">Ce mois-ci</span>
           </CardHeader>
           <CardContent>
             <PocketUsageDonut usage={usageByPocket} total={monthSpend} />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Règles de répartition</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AllocationRules categories={categories} pockets={pockets} />
-          </CardContent>
-        </Card>
+        <SmartAlertCard headline={alertHeadline} bills={alertBills} />
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Tendance sur 6 mois</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TrendChart data={monthlySpend} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Dépenses par catégorie ce mois-ci</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CategoryBars transactions={monthTransactions} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Dernières transactions</CardTitle>
-          <Link href="/transactions" className="text-xs text-muted-foreground hover:underline">
-            Tout voir
-          </Link>
-        </CardHeader>
-        <CardContent className="divide-y">
-          {recent.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
-              <FileText className="size-6 text-muted-foreground/50" />
-              Aucune transaction pour le moment.
-            </div>
-          ) : (
-            recent.map((t) => <TransactionRow key={t.id} transaction={t} profiles={profiles} />)
-          )}
-        </CardContent>
-      </Card>
 
       <Link
         href="/settle"

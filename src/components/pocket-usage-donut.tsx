@@ -1,7 +1,7 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
+import { categoryBg, categoryText } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
 
 const RING_COLOR: Record<string, string> = {
@@ -29,8 +29,8 @@ export function PocketUsageDonut({ usage, total }: { usage: PocketUsage[]; total
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-      <div className="relative mx-auto h-40 w-40 shrink-0">
+    <div className="flex flex-col gap-4">
+      <div className="relative mx-auto h-36 w-36 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -66,14 +66,12 @@ export function PocketUsageDonut({ usage, total }: { usage: PocketUsage[]; total
       <div className="flex flex-1 flex-col gap-2">
         {data.map((d) => (
           <div key={d.id} className="flex items-center gap-2 text-sm">
-            <div className={`flex size-6 shrink-0 items-center justify-center rounded-full text-white ${categoryBg(d.color)}`}>
-              <CategoryIcon icon={d.icon} className="size-3" />
-            </div>
+            <span className={`size-2.5 shrink-0 rounded-full ${categoryBg(d.color)}`} />
             <span className="min-w-0 flex-1 truncate">{d.name}</span>
             <span className={`shrink-0 text-xs font-medium ${categoryText(d.color)}`}>
               {Math.round((d.spent / total) * 100)}%
             </span>
-            <span className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+            <span className="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
               {formatAmount(d.spent)}
             </span>
           </div>
