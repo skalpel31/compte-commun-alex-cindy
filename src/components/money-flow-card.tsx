@@ -9,14 +9,17 @@ import type { Pocket } from "@/lib/types";
 export function MoneyFlowCard({
   incomeSources,
   incomeTotal,
+  incomeByPocket,
   pockets,
   showEditLink = true,
 }: {
   incomeSources: IncomeSource[];
   incomeTotal: number;
+  incomeByPocket: Record<string, number>;
   pockets: Pocket[];
   showEditLink?: boolean;
 }) {
+  const hasRealIncome = incomeTotal > 0;
   return (
     <Card className="glass">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -60,21 +63,26 @@ export function MoneyFlowCard({
         </div>
 
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground">Répartition automatique</p>
-          {pockets.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 text-sm">
-              <div className={`flex size-6 shrink-0 items-center justify-center rounded-full text-white ${categoryBg(p.color)}`}>
-                <CategoryIcon icon={p.icon} className="size-3" />
+          <p className="text-xs text-muted-foreground">
+            {hasRealIncome ? "Répartition automatique" : "Répartition automatique (prévision)"}
+          </p>
+          {pockets.map((p) => {
+            const amount = hasRealIncome
+              ? (incomeByPocket[p.id] ?? 0)
+              : incomeTotal * (p.allocation_pct / 100);
+            return (
+              <div key={p.id} className="flex items-center gap-2 text-sm">
+                <div className={`flex size-6 shrink-0 items-center justify-center rounded-full text-white ${categoryBg(p.color)}`}>
+                  <CategoryIcon icon={p.icon} className="size-3" />
+                </div>
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                <span className="shrink-0 font-medium tabular-nums">{formatAmount(amount)}</span>
+                <span className={`w-9 shrink-0 text-right text-xs ${categoryText(p.color)}`}>
+                  {p.allocation_pct}%
+                </span>
               </div>
-              <span className="min-w-0 flex-1 truncate">{p.name}</span>
-              <span className="shrink-0 font-medium tabular-nums">
-                {formatAmount(incomeTotal * (p.allocation_pct / 100))}
-              </span>
-              <span className={`w-9 shrink-0 text-right text-xs ${categoryText(p.color)}`}>
-                {p.allocation_pct}%
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>

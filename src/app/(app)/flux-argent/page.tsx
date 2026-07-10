@@ -4,7 +4,7 @@ import { PocketManager } from "@/components/pocket-manager";
 import { getMonthIncome, getPockets } from "@/lib/data";
 
 export default async function FluxArgentPage() {
-  const [{ sources, total }, pockets] = await Promise.all([getMonthIncome(), getPockets()]);
+  const [{ sources, total, byPocket }, pockets] = await Promise.all([getMonthIncome(), getPockets()]);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
@@ -15,7 +15,13 @@ export default async function FluxArgentPage() {
         </p>
       </div>
 
-      <MoneyFlowCard incomeSources={sources} incomeTotal={total} pockets={pockets} showEditLink={false} />
+      <MoneyFlowCard
+        incomeSources={sources}
+        incomeTotal={total}
+        incomeByPocket={byPocket}
+        pockets={pockets}
+        showEditLink={false}
+      />
 
       <Card>
         <CardHeader>

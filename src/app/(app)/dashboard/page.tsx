@@ -28,7 +28,7 @@ export default async function DashboardPage() {
     goals,
     pockets,
     currentProfile,
-    { sources: incomeSources, total: incomeTotal },
+    { sources: incomeSources, total: incomeTotal, byPocket: incomeByPocket },
     categories,
   ] = await Promise.all([
     getMonthTransactions(),
@@ -132,7 +132,12 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <MoneyFlowCard incomeSources={incomeSources} incomeTotal={incomeTotal} pockets={pockets} />
+        <MoneyFlowCard
+          incomeSources={incomeSources}
+          incomeTotal={incomeTotal}
+          incomeByPocket={incomeByPocket}
+          pockets={pockets}
+        />
         <AccountsCard pockets={pockets} />
       </div>
 

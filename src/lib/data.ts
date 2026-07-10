@@ -208,17 +208,23 @@ export type IncomeSource = { label: string; amount: number };
 
 export async function getMonthIncome(
   month = currentMonth()
-): Promise<{ sources: IncomeSource[]; total: number }> {
+): Promise<{ sources: IncomeSource[]; total: number; byPocket: Record<string, number> }> {
   const transactions = await getMonthTransactions(month);
   const income = transactions.filter((t) => t.category?.type === "income");
   const total = income.reduce((sum, t) => sum + t.amount, 0);
 
   const byLabel = new Map<string, number>();
+  const byPocket: Record<string, number> = {};
   for (const t of income) {
     const label = t.description || t.category?.name || "Revenu";
     byLabel.set(label, (byLabel.get(label) ?? 0) + t.amount);
+    if (t.pocket_id) byPocket[t.pocket_id] = (byPocket[t.pocket_id] ?? 0) + t.amount;
   }
 
-  return { sources: Array.from(byLabel, ([label, amount]) => ({ label, amount })), total };
+  return {
+    sources: Array.from(byLabel, ([label, amount]) => ({ label, amount })),
+    total,
+    byPocket,
+  };
 }
 
