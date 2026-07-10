@@ -86,15 +86,15 @@ export function BillRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{bill.name}</p>
-          <p className={`flex items-center gap-1 text-xs ${meta.className}`}>
-            {bill.status !== "later" && <StatusIcon className="size-3" />}
-            {bill.status === "later"
-              ? `Le ${bill.due_day} du mois`
-              : `${meta.label} · le ${bill.due_day}`}
-            {payerName && <span className="text-muted-foreground"> · {payerName}</span>}
-            {bill.split_type === "personal" && (
-              <span className="text-muted-foreground"> · personnel</span>
-            )}
+          <p className="text-xs text-muted-foreground">
+            <span className={`inline-flex items-center gap-1 ${meta.className}`}>
+              {bill.status !== "later" && <StatusIcon className="size-3" />}
+              {bill.status === "later"
+                ? `Le ${bill.due_day} du mois`
+                : `${meta.label} · le ${bill.due_day}`}
+            </span>
+            {payerName && ` · ${payerName}`}
+            {bill.split_type === "personal" && " · personnel"}
           </p>
         </div>
       </button>
