@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { SidebarNav, BottomNav } from "@/components/nav-link";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { LogoutButton } from "@/components/logout-button";
 import { BrandMark } from "@/components/brand-mark";
 import { getBills, getProfiles } from "@/lib/data";
@@ -63,7 +62,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 </span>
               )}
             </Link>
-            <ThemeToggle />
             <LogoutButton />
           </div>
         </header>
