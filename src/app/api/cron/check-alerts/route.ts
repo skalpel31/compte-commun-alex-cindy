@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { createClient as createServerClient } from "@supabase/supabase-js";
 import { currentMonth, formatAmount } from "@/lib/format";
+import { installmentNumberFor } from "@/lib/bill-installments";
 
 function adminClient() {
   return createServerClient(
@@ -119,13 +120,10 @@ export async function GET(request: Request) {
       : { data: null };
     const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
 
-    const { count: installmentsPaid } = await supabase
-      .from("bill_payments")
-      .select("id", { count: "exact", head: true })
-      .eq("bill_id", bill.id)
-      .not("paid_at", "is", null);
     const isLastInstallment =
-      !!bill.installments_total && (installmentsPaid ?? 0) + 1 >= bill.installments_total;
+      !!bill.installments_total &&
+      !!bill.start_date &&
+      installmentNumberFor(bill.start_date) >= bill.installments_total;
     const amount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
 
     const { data: transaction, error: txError } = await supabase

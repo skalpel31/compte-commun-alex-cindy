@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { currentMonth } from "@/lib/format";
+import { installmentNumberFor } from "@/lib/bill-installments";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -228,17 +229,8 @@ export type BillInput = {
   autopay: boolean;
   installments_total: number | null;
   final_amount: number | null;
+  start_date: string | null;
 };
-
-/** Counts completed installments for a bill, across all months. */
-async function countPaidInstallments(supabase: SupabaseClient, billId: string) {
-  const { count } = await supabase
-    .from("bill_payments")
-    .select("id", { count: "exact", head: true })
-    .eq("bill_id", billId)
-    .not("paid_at", "is", null);
-  return count ?? 0;
-}
 
 export async function createBill(input: BillInput) {
   const supabase = await createClient();
@@ -275,7 +267,7 @@ export async function markBillPaid(billId: string, userId: string) {
   const { data: bill, error: billError } = await supabase
     .from("bills")
     .select(
-      "name, amount, category_id, pocket_id, installments_total, final_amount, category:categories(default_pocket_id)"
+      "name, amount, category_id, pocket_id, installments_total, final_amount, start_date, category:categories(default_pocket_id)"
     )
     .eq("id", billId)
     .single();
@@ -284,8 +276,8 @@ export async function markBillPaid(billId: string, userId: string) {
   const category = bill.category as unknown as { default_pocket_id: string | null } | null;
   const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
 
-  const installmentsPaid = await countPaidInstallments(supabase, billId);
-  const isLastInstallment = !!bill.installments_total && installmentsPaid + 1 >= bill.installments_total;
+  const isLastInstallment =
+    !!bill.installments_total && !!bill.start_date && installmentNumberFor(bill.start_date) >= bill.installments_total;
   const amount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
 
   const { data: transaction, error: txError } = await supabase

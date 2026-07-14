@@ -17,6 +17,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { createBill, updateBill, type BillInput } from "@/lib/actions";
 import { cn } from "@/lib/utils";
+import { localDateString } from "@/lib/format";
 import type { Bill, Category, Pocket, Profile } from "@/lib/types";
 
 function BillForm({
@@ -45,6 +46,7 @@ function BillForm({
     bill?.installments_total ? String(bill.installments_total) : ""
   );
   const [finalAmount, setFinalAmount] = useState(bill?.final_amount ? String(bill.final_amount) : "");
+  const [startDate, setStartDate] = useState(bill?.start_date ?? localDateString(new Date()));
   const [pending, startTransition] = useTransition();
 
   function handleCategoryChange(value: string) {
@@ -67,6 +69,10 @@ function BillForm({
       toast.error("Indique un nombre de mensualités valide");
       return;
     }
+    if (hasInstallments && !startDate) {
+      toast.error("Indique depuis quand tu paies déjà");
+      return;
+    }
     const finalAmountNumeric = finalAmount ? parseFloat(finalAmount.replace(",", ".")) : null;
     const input: BillInput = {
       name: name.trim(),
@@ -78,6 +84,7 @@ function BillForm({
       autopay,
       installments_total: total,
       final_amount: hasInstallments && finalAmountNumeric ? finalAmountNumeric : null,
+      start_date: hasInstallments ? startDate : null,
     };
     startTransition(async () => {
       try {
@@ -225,27 +232,42 @@ function BillForm({
             <Switch checked={hasInstallments} onCheckedChange={setHasInstallments} />
           </div>
           {hasInstallments && (
-            <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="flex flex-col gap-3 pt-1">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="bill-installments">Nombre de mensualités</Label>
+                <Label htmlFor="bill-start-date">Depuis quand tu paies déjà</Label>
                 <Input
-                  id="bill-installments"
-                  type="number"
-                  min={1}
-                  placeholder="ex. 4 ou 10"
-                  value={installmentsTotal}
-                  onChange={(e) => setInstallmentsTotal(e.target.value)}
+                  id="bill-start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Déjà commencé ? Mets la date du 1er prélèvement, même passée — le nombre de
+                  mensualités déjà payées se calcule tout seul.
+                </p>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="bill-final-amount">Dernier montant (si différent)</Label>
-                <Input
-                  id="bill-final-amount"
-                  inputMode="decimal"
-                  placeholder={amount || "0,00"}
-                  value={finalAmount}
-                  onChange={(e) => setFinalAmount(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="bill-installments">Nombre de mensualités</Label>
+                  <Input
+                    id="bill-installments"
+                    type="number"
+                    min={1}
+                    placeholder="ex. 4 ou 10"
+                    value={installmentsTotal}
+                    onChange={(e) => setInstallmentsTotal(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="bill-final-amount">Dernier montant (si différent)</Label>
+                  <Input
+                    id="bill-final-amount"
+                    inputMode="decimal"
+                    placeholder={amount || "0,00"}
+                    value={finalAmount}
+                    onChange={(e) => setFinalAmount(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           )}

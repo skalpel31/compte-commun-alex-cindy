@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { currentMonth, localDateString, localMonthString } from "@/lib/format";
+import { installmentNumberFor } from "@/lib/bill-installments";
 import type {
   Bill,
   BillWithStatus,
@@ -187,8 +188,14 @@ async function withBillStatus(
       status = diffDays <= 5 ? "upcoming" : "later";
     }
 
-    const installmentsPaid = paidCountByBillId.get(bill.id) ?? 0;
-    const isLastInstallment = !!bill.installments_total && installmentsPaid + 1 >= bill.installments_total;
+    // Installment progress is date-driven (not a count of app-recorded
+    // payments) so a credit already underway can be added with its real
+    // start date and the count reflects reality immediately.
+    const currentInstallment = bill.start_date
+      ? installmentNumberFor(bill.start_date)
+      : (paidCountByBillId.get(bill.id) ?? 0) + 1;
+    const installmentsPaid = Math.max(0, currentInstallment - 1);
+    const isLastInstallment = !!bill.installments_total && currentInstallment >= bill.installments_total;
     const effectiveAmount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
 
     return { ...bill, status, dueDate, autoMarked: !!payment?.auto, installmentsPaid, isLastInstallment, effectiveAmount };

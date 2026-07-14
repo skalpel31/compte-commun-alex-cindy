@@ -74,6 +74,7 @@ export type Bill = {
   active: boolean;
   installments_total: number | null;
   final_amount: number | null;
+  start_date: string | null;
   category: Category | null;
 };
 
