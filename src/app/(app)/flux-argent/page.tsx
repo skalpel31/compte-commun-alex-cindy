@@ -1,10 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MoneyFlowCard } from "@/components/money-flow-card";
 import { PocketManager } from "@/components/pocket-manager";
-import { getMonthIncome, getPockets } from "@/lib/data";
+import { getCategories, getMonthIncome, getPockets } from "@/lib/data";
 
 export default async function FluxArgentPage() {
-  const [{ sources, total, byPocket }, pockets] = await Promise.all([getMonthIncome(), getPockets()]);
+  const [{ sources, total, byPocket }, pockets, categories] = await Promise.all([
+    getMonthIncome(),
+    getPockets(),
+    getCategories(),
+  ]);
+  const incomeCategoryId = categories.find((c) => c.type === "income")?.id;
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
@@ -20,6 +25,7 @@ export default async function FluxArgentPage() {
         incomeTotal={total}
         incomeByPocket={byPocket}
         pockets={pockets}
+        incomeCategoryId={incomeCategoryId}
         showEditLink={false}
       />
 

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
@@ -11,14 +12,19 @@ export function MoneyFlowCard({
   incomeTotal,
   incomeByPocket,
   pockets,
+  incomeCategoryId,
   showEditLink = true,
 }: {
   incomeSources: IncomeSource[];
   incomeTotal: number;
   incomeByPocket: Record<string, number>;
   pockets: Pocket[];
+  incomeCategoryId?: string;
   showEditLink?: boolean;
 }) {
+  const addIncomeHref = incomeCategoryId
+    ? `/transactions/new?category=${incomeCategoryId}`
+    : "/transactions/new";
   const hasRealIncome = incomeTotal > 0;
   return (
     <Card className="glass">
@@ -37,7 +43,18 @@ export function MoneyFlowCard({
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_auto_1fr] md:items-center">
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground">Revenus du mois</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">Revenus du mois</p>
+            <Button
+              size="xs"
+              variant="secondary"
+              nativeButton={false}
+              render={<Link href={addIncomeHref} />}
+            >
+              <Plus className="size-3" />
+              Salaire
+            </Button>
+          </div>
           <p className="text-2xl font-semibold tabular-nums">{formatAmount(incomeTotal)}</p>
           {incomeSources.length === 0 ? (
             <p className="text-xs text-muted-foreground">

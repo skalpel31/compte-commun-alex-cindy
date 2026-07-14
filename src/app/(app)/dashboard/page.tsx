@@ -137,6 +137,7 @@ export default async function DashboardPage() {
           incomeTotal={incomeTotal}
           incomeByPocket={incomeByPocket}
           pockets={pockets}
+          incomeCategoryId={categories.find((c) => c.type === "income")?.id}
         />
         <AccountsCard pockets={pockets} />
       </div>

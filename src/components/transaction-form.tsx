@@ -23,10 +23,12 @@ export function TransactionForm({
   categories,
   profiles,
   pockets,
+  initialCategoryId,
 }: {
   categories: Category[];
   profiles: Profile[];
   pockets: Pocket[];
+  initialCategoryId?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -34,8 +36,10 @@ export function TransactionForm({
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [date, setDate] = useState(() => localDateString(new Date()));
-  const [categoryId, setCategoryId] = useState("");
-  const [pocketId, setPocketId] = useState("");
+  const [categoryId, setCategoryId] = useState(initialCategoryId ?? "");
+  const [pocketId, setPocketId] = useState(
+    () => categories.find((c) => c.id === initialCategoryId)?.default_pocket_id ?? ""
+  );
   const [pocketTouched, setPocketTouched] = useState(false);
   const [paidBy, setPaidBy] = useState(profiles[0]?.id ?? "");
 
