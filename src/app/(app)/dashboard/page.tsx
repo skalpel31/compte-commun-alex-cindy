@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
+import { ArrowRight, RefreshCw, Sparkles, Target, TrendingUp, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MoneyFlowCard } from "@/components/money-flow-card";
 import { AccountsCard } from "@/components/accounts-card";
@@ -49,6 +49,8 @@ export default async function DashboardPage() {
   const jointProjected = jointPocket ? jointPocket.balance - jointUpcoming : null;
   const lowBalanceAlert =
     jointPocket && jointProjected !== null && jointProjected < 500 && jointUpcoming > 0;
+
+  const totalFixedCharges = bills.reduce((s, b) => s + b.effectiveAmount, 0);
 
   const monthSpend = monthTransactions
     .filter((t) => t.category?.type !== "income")
@@ -130,6 +132,21 @@ export default async function DashboardPage() {
           Tout votre argent, organisé pour vos objectifs de vie.
         </p>
       </div>
+
+      <Card className="glass">
+        <CardContent className="flex items-center gap-3 py-4">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Wallet className="size-4" />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground">Charges fixes du foyer</p>
+            <p className="text-xl font-semibold tabular-nums">{formatAmount(totalFixedCharges)}</p>
+          </div>
+          <Link href="/bills" className="text-xs text-muted-foreground hover:underline">
+            Voir le détail
+          </Link>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
         <MoneyFlowCard

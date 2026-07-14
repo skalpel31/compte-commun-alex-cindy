@@ -14,6 +14,7 @@ export default async function BillsPage() {
   ]);
   const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.effectiveAmount, 0);
   const overdueCount = bills.filter((b) => b.status === "overdue").length;
+  const totalFixedCharges = bills.reduce((s, b) => s + b.effectiveAmount, 0);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -27,21 +28,35 @@ export default async function BillsPage() {
         <NewBillSheet categories={categories} profiles={profiles} pockets={pockets} />
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Restant à payer ce mois-ci
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-semibold">{formatAmount(totalDue)}</p>
-          {overdueCount > 0 && (
-            <p className="text-xs text-critical">
-              {overdueCount} facture{overdueCount > 1 ? "s" : ""} en retard
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Charges fixes du foyer
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold">{formatAmount(totalFixedCharges)}</p>
+            <p className="text-xs text-muted-foreground">par mois, tant qu&apos;une facture est active</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Restant à payer ce mois-ci
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold">{formatAmount(totalDue)}</p>
+            {overdueCount > 0 && (
+              <p className="text-xs text-critical">
+                {overdueCount} facture{overdueCount > 1 ? "s" : ""} en retard
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardContent className="divide-y">
