@@ -92,14 +92,24 @@ export async function createTransaction(input: TransactionInput) {
   };
 
   if (category?.type === "income") {
-    const { data: pockets } = await supabase.from("pockets").select("id, allocation_pct");
-    const rows = (pockets ?? [])
-      .filter((p) => p.allocation_pct > 0)
-      .map((p) => ({
-        ...base,
-        amount: Math.round(input.amount * (p.allocation_pct / 100) * 100) / 100,
-        pocket_id: p.id,
-      }));
+    const { data: allPockets } = await supabase.from("pockets").select("id, allocation_pct, owner_id");
+    const pockets = allPockets ?? [];
+
+    // A personal pocket only gets funded by its own owner's income — the
+    // percentage that would've gone to the other partner's personal pocket
+    // is redirected to the payer's own personal pocket instead.
+    const otherPersonalPct = pockets
+      .filter((p) => p.owner_id && p.owner_id !== input.paid_by)
+      .reduce((sum, p) => sum + p.allocation_pct, 0);
+
+    const rows = pockets
+      .filter((p) => !p.owner_id || p.owner_id === input.paid_by)
+      .map((p) => {
+        const pct = p.owner_id === input.paid_by ? p.allocation_pct + otherPersonalPct : p.allocation_pct;
+        return { ...base, amount: Math.round(input.amount * (pct / 100) * 100) / 100, pocket_id: p.id };
+      })
+      .filter((row) => row.amount > 0);
+
     const { error } = await supabase.from("transactions").insert(rows);
     if (error) throw new Error(error.message);
   } else {
@@ -216,7 +226,19 @@ export type BillInput = {
   default_payer: string | null;
   pocket_id: string | null;
   autopay: boolean;
+  installments_total: number | null;
+  final_amount: number | null;
 };
+
+/** Counts completed installments for a bill, across all months. */
+async function countPaidInstallments(supabase: SupabaseClient, billId: string) {
+  const { count } = await supabase
+    .from("bill_payments")
+    .select("id", { count: "exact", head: true })
+    .eq("bill_id", billId)
+    .not("paid_at", "is", null);
+  return count ?? 0;
+}
 
 export async function createBill(input: BillInput) {
   const supabase = await createClient();
@@ -252,7 +274,9 @@ export async function markBillPaid(billId: string, userId: string) {
 
   const { data: bill, error: billError } = await supabase
     .from("bills")
-    .select("name, amount, category_id, pocket_id, category:categories(default_pocket_id)")
+    .select(
+      "name, amount, category_id, pocket_id, installments_total, final_amount, category:categories(default_pocket_id)"
+    )
     .eq("id", billId)
     .single();
   if (billError) throw new Error(billError.message);
@@ -260,10 +284,14 @@ export async function markBillPaid(billId: string, userId: string) {
   const category = bill.category as unknown as { default_pocket_id: string | null } | null;
   const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
 
+  const installmentsPaid = await countPaidInstallments(supabase, billId);
+  const isLastInstallment = !!bill.installments_total && installmentsPaid + 1 >= bill.installments_total;
+  const amount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
+
   const { data: transaction, error: txError } = await supabase
     .from("transactions")
     .insert({
-      amount: bill.amount,
+      amount,
       description: bill.name,
       date: new Date().toISOString().slice(0, 10),
       category_id: bill.category_id,
@@ -275,6 +303,10 @@ export async function markBillPaid(billId: string, userId: string) {
     .select("id")
     .single();
   if (txError) throw new Error(txError.message);
+
+  if (isLastInstallment) {
+    await supabase.from("bills").update({ active: false }).eq("id", billId);
+  }
 
   const { error } = await supabase.from("bill_payments").upsert(
     {
@@ -294,15 +326,21 @@ export async function markBillPaid(billId: string, userId: string) {
 export async function markBillUnpaid(billId: string) {
   const supabase = await createClient();
 
+  // Target the most recent payment rather than assuming it's this calendar
+  // month — a completed installment bill's final payment may have landed in
+  // an earlier month, and it should still be reachable to undo.
   const { data: payment, error: fetchError } = await supabase
     .from("bill_payments")
-    .select("transaction_id")
+    .select("id, month, transaction_id")
     .eq("bill_id", billId)
-    .eq("month", currentMonth())
+    .not("paid_at", "is", null)
+    .order("month", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (fetchError) throw new Error(fetchError.message);
+  if (!payment) return;
 
-  if (payment?.transaction_id) {
+  if (payment.transaction_id) {
     const { error: deleteTxError } = await supabase
       .from("transactions")
       .delete()
@@ -310,12 +348,13 @@ export async function markBillUnpaid(billId: string) {
     if (deleteTxError) throw new Error(deleteTxError.message);
   }
 
-  const { error } = await supabase
-    .from("bill_payments")
-    .delete()
-    .eq("bill_id", billId)
-    .eq("month", currentMonth());
+  const { error } = await supabase.from("bill_payments").delete().eq("id", payment.id);
   if (error) throw new Error(error.message);
+
+  const { data: bill } = await supabase.from("bills").select("installments_total").eq("id", billId).single();
+  if (bill?.installments_total) {
+    await supabase.from("bills").update({ active: true }).eq("id", billId);
+  }
 
   revalidateMoneyPaths();
 }

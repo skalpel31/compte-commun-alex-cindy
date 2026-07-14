@@ -119,10 +119,19 @@ export async function GET(request: Request) {
       : { data: null };
     const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
 
+    const { count: installmentsPaid } = await supabase
+      .from("bill_payments")
+      .select("id", { count: "exact", head: true })
+      .eq("bill_id", bill.id)
+      .not("paid_at", "is", null);
+    const isLastInstallment =
+      !!bill.installments_total && (installmentsPaid ?? 0) + 1 >= bill.installments_total;
+    const amount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
+
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
       .insert({
-        amount: bill.amount,
+        amount,
         description: bill.name,
         date: todayStr,
         category_id: bill.category_id,
@@ -134,6 +143,10 @@ export async function GET(request: Request) {
       .select("id")
       .single();
     if (txError) continue;
+
+    if (isLastInstallment) {
+      await supabase.from("bills").update({ active: false }).eq("id", bill.id);
+    }
 
     await supabase.from("bill_payments").upsert(
       {
@@ -152,7 +165,7 @@ export async function GET(request: Request) {
         supabase,
         userId,
         `Facture prélevée automatiquement : ${bill.name}`,
-        `${formatAmount(Number(bill.amount))} — si ce prélèvement n'a pas réellement eu lieu, décoche-la dans Factures.`,
+        `${formatAmount(Number(amount))}${isLastInstallment ? " (dernier prélèvement)" : ""} — si ce prélèvement n'a pas réellement eu lieu, décoche-la dans Factures.`,
         "/bills"
       );
     }

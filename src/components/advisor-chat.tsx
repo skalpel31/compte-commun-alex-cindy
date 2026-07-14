@@ -37,7 +37,7 @@ function answerSavings(pockets: PocketBalance[], bills: BillWithStatus[]): strin
   }
   const unpaidJointBills = bills
     .filter((b) => b.pocket_id === joint.id && b.status !== "paid")
-    .reduce((sum, b) => sum + b.amount, 0);
+    .reduce((sum, b) => sum + b.effectiveAmount, 0);
   const potential = joint.balance - unpaidJointBills;
 
   if (potential <= 0) {
@@ -60,7 +60,7 @@ function answerBills(bills: BillWithStatus[]): string {
     return "Aucune facture en attente pour le moment, tout est payé !";
   }
   const lines = upcoming.map(
-    (b) => `- ${b.name} : ${formatAmount(b.amount)} (${billStatusLabel(b)} ${formatDate(b.dueDate)})`
+    (b) => `- ${b.name} : ${formatAmount(b.effectiveAmount)} (${billStatusLabel(b)} ${formatDate(b.dueDate)})`
   );
   return `Voici vos prochaines factures :\n${lines.join("\n")}`;
 }

@@ -147,7 +147,7 @@ export function BillCalendar({ bills }: { bills: BillWithStatus[] }) {
                 <p className="truncate text-sm font-medium">{bill.name}</p>
               </div>
               <span className="shrink-0 text-sm font-semibold tabular-nums">
-                {formatAmount(bill.amount)}
+                {formatAmount(bill.effectiveAmount)}
               </span>
             </div>
           ))

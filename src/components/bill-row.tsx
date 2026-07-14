@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Check, CircleAlert, Clock, Trash2, Zap } from "lucide-react";
+import { Check, CircleAlert, Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { EditBillSheet } from "@/components/bill-sheet";
@@ -34,7 +34,7 @@ export function BillRow({
   const [editOpen, setEditOpen] = useState(false);
   const meta =
     bill.status === "paid" && bill.autoMarked
-      ? { label: "Prélevée auto", className: "text-primary", Icon: Zap }
+      ? { label: "Prélevée auto", className: "text-good", Icon: Check }
       : STATUS_META[bill.status];
   const StatusIcon = meta.Icon;
   const payerName = profiles.find((p) => p.id === bill.default_payer)?.display_name;
@@ -101,10 +101,15 @@ export function BillRow({
             </span>
             {payerName && ` · ${payerName}`}
             {pocketName && ` · ${pocketName}`}
+            {bill.installments_total &&
+              ` · ${Math.min(bill.installmentsPaid + 1, bill.installments_total)}/${bill.installments_total}`}
+            {bill.isLastInstallment && bill.status !== "paid" && (
+              <span className="ml-1 font-medium text-warning">dernier prélèvement</span>
+            )}
           </p>
         </div>
       </button>
-      <p className="shrink-0 text-sm font-semibold">{formatAmount(bill.amount)}</p>
+      <p className="shrink-0 text-sm font-semibold">{formatAmount(bill.effectiveAmount)}</p>
       <Button
         size="icon-sm"
         variant={bill.status === "paid" ? "secondary" : "outline"}

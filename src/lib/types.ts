@@ -72,6 +72,8 @@ export type Bill = {
   split_type: "shared" | "personal";
   autopay: boolean;
   active: boolean;
+  installments_total: number | null;
+  final_amount: number | null;
   category: Category | null;
 };
 
@@ -79,4 +81,7 @@ export type BillWithStatus = Bill & {
   status: "paid" | "overdue" | "upcoming" | "later";
   dueDate: string;
   autoMarked: boolean;
+  installmentsPaid: number;
+  isLastInstallment: boolean;
+  effectiveAmount: number;
 };

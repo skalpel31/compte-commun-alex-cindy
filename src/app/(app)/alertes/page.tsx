@@ -15,7 +15,7 @@ export default async function AlertesPage() {
     .map((p) => {
       const upcoming = pending
         .filter((b) => b.pocket_id === p.id)
-        .reduce((sum, b) => sum + b.amount, 0);
+        .reduce((sum, b) => sum + b.effectiveAmount, 0);
       return { pocket: p, projected: p.balance - upcoming, upcoming };
     })
     .filter((r) => r.upcoming > 0 && r.projected < 500);
@@ -94,7 +94,7 @@ export default async function AlertesPage() {
                   <p className="text-xs text-muted-foreground">le {formatDate(bill.dueDate)}</p>
                 </div>
                 <span className="shrink-0 text-sm font-semibold tabular-nums">
-                  {formatAmount(bill.amount)}
+                  {formatAmount(bill.effectiveAmount)}
                 </span>
               </div>
             ))

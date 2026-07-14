@@ -1,17 +1,18 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BillRow } from "@/components/bill-row";
 import { NewBillSheet } from "@/components/bill-sheet";
-import { getBills, getCategories, getPockets, getProfiles } from "@/lib/data";
+import { getBills, getCategories, getCompletedBills, getPockets, getProfiles } from "@/lib/data";
 import { formatAmount } from "@/lib/format";
 
 export default async function BillsPage() {
-  const [bills, categories, profiles, pockets] = await Promise.all([
+  const [bills, completedBills, categories, profiles, pockets] = await Promise.all([
     getBills(),
+    getCompletedBills(),
     getCategories(),
     getProfiles(),
     getPockets(),
   ]);
-  const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.amount, 0);
+  const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.effectiveAmount, 0);
   const overdueCount = bills.filter((b) => b.status === "overdue").length;
 
   return (
@@ -55,6 +56,19 @@ export default async function BillsPage() {
           )}
         </CardContent>
       </Card>
+
+      {completedBills.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base text-muted-foreground">Terminées</CardTitle>
+          </CardHeader>
+          <CardContent className="divide-y opacity-70">
+            {completedBills.map((b) => (
+              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} />
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

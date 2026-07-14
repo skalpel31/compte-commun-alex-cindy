@@ -40,6 +40,11 @@ function BillForm({
   const [pocketTouched, setPocketTouched] = useState(!!bill?.pocket_id);
   const [payer, setPayer] = useState<string>(bill?.default_payer ?? "");
   const [autopay, setAutopay] = useState(bill?.autopay ?? false);
+  const [hasInstallments, setHasInstallments] = useState(!!bill?.installments_total);
+  const [installmentsTotal, setInstallmentsTotal] = useState(
+    bill?.installments_total ? String(bill.installments_total) : ""
+  );
+  const [finalAmount, setFinalAmount] = useState(bill?.final_amount ? String(bill.final_amount) : "");
   const [pending, startTransition] = useTransition();
 
   function handleCategoryChange(value: string) {
@@ -57,6 +62,12 @@ function BillForm({
       toast.error("Vérifie le nom, le montant et le jour (1-28)");
       return;
     }
+    const total = hasInstallments ? parseInt(installmentsTotal, 10) : null;
+    if (hasInstallments && (!total || total < 1)) {
+      toast.error("Indique un nombre de mensualités valide");
+      return;
+    }
+    const finalAmountNumeric = finalAmount ? parseFloat(finalAmount.replace(",", ".")) : null;
     const input: BillInput = {
       name: name.trim(),
       amount: numericAmount,
@@ -65,6 +76,8 @@ function BillForm({
       default_payer: payer || null,
       pocket_id: pocketId === "none" ? null : pocketId,
       autopay,
+      installments_total: total,
+      final_amount: hasInstallments && finalAmountNumeric ? finalAmountNumeric : null,
     };
     startTransition(async () => {
       try {
@@ -200,6 +213,42 @@ function BillForm({
             </p>
           </div>
           <Switch checked={autopay} onCheckedChange={setAutopay} />
+        </div>
+        <div className="flex flex-col gap-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Nombre de fois limité</p>
+              <p className="text-xs text-muted-foreground">
+                Crédit, paiement en plusieurs fois... s&apos;arrête toute seule après la dernière
+              </p>
+            </div>
+            <Switch checked={hasInstallments} onCheckedChange={setHasInstallments} />
+          </div>
+          {hasInstallments && (
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="bill-installments">Nombre de mensualités</Label>
+                <Input
+                  id="bill-installments"
+                  type="number"
+                  min={1}
+                  placeholder="ex. 4 ou 10"
+                  value={installmentsTotal}
+                  onChange={(e) => setInstallmentsTotal(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="bill-final-amount">Dernier montant (si différent)</Label>
+                <Input
+                  id="bill-final-amount"
+                  inputMode="decimal"
+                  placeholder={amount || "0,00"}
+                  value={finalAmount}
+                  onChange={(e) => setFinalAmount(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <SheetFooter>

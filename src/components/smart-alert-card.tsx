@@ -44,7 +44,7 @@ export function SmartAlertCard({
           {bills.map((b) => (
             <div key={b.id} className="flex items-center justify-between text-sm">
               <span className="truncate text-muted-foreground">{b.name}</span>
-              <span className="shrink-0 font-medium tabular-nums">{formatAmount(b.amount)}</span>
+              <span className="shrink-0 font-medium tabular-nums">{formatAmount(b.effectiveAmount)}</span>
               <span className="w-16 shrink-0 text-right text-xs text-muted-foreground">
                 le {formatDate(b.dueDate)}
               </span>

@@ -154,19 +154,26 @@ export async function getMonthlySpend(monthsBack = 6) {
   return months;
 }
 
-export async function getBills(): Promise<BillWithStatus[]> {
-  const supabase = await createClient();
+async function withBillStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  bills: Bill[]
+): Promise<BillWithStatus[]> {
   const month = currentMonth();
-  const [{ data: bills }, { data: payments }] = await Promise.all([
-    supabase.from("bills").select("*, category:categories(*)").eq("active", true).order("due_day"),
-    supabase.from("bill_payments").select("bill_id, paid_at, auto").eq("month", month),
+  const billIds = bills.map((b) => b.id);
+  const [{ data: payments }, { data: allPayments }] = await Promise.all([
+    supabase.from("bill_payments").select("bill_id, paid_at, auto").eq("month", month).in("bill_id", billIds),
+    supabase.from("bill_payments").select("bill_id").not("paid_at", "is", null).in("bill_id", billIds),
   ]);
 
   const today = new Date();
   const todayStr = localDateString(today);
   const paidByBillId = new Map((payments ?? []).filter((p) => p.paid_at).map((p) => [p.bill_id as string, p]));
+  const paidCountByBillId = new Map<string, number>();
+  for (const p of allPayments ?? []) {
+    paidCountByBillId.set(p.bill_id, (paidCountByBillId.get(p.bill_id) ?? 0) + 1);
+  }
 
-  return ((bills as Bill[] | null) ?? []).map((bill) => {
+  return bills.map((bill) => {
     const dueDate = `${month.slice(0, 7)}-${String(bill.due_day).padStart(2, "0")}`;
     const payment = paidByBillId.get(bill.id);
     let status: BillWithStatus["status"];
@@ -179,8 +186,59 @@ export async function getBills(): Promise<BillWithStatus[]> {
       );
       status = diffDays <= 5 ? "upcoming" : "later";
     }
-    return { ...bill, status, dueDate, autoMarked: !!payment?.auto };
+
+    const installmentsPaid = paidCountByBillId.get(bill.id) ?? 0;
+    const isLastInstallment = !!bill.installments_total && installmentsPaid + 1 >= bill.installments_total;
+    const effectiveAmount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
+
+    return { ...bill, status, dueDate, autoMarked: !!payment?.auto, installmentsPaid, isLastInstallment, effectiveAmount };
   });
+}
+
+export async function getBills(): Promise<BillWithStatus[]> {
+  const supabase = await createClient();
+  const { data: bills } = await supabase
+    .from("bills")
+    .select("*, category:categories(*)")
+    .eq("active", true)
+    .order("due_day");
+  return withBillStatus(supabase, (bills as Bill[] | null) ?? []);
+}
+
+/** Installment bills that finished their last payment — kept reachable so a wrong final payment can still be undone. */
+export async function getCompletedBills(): Promise<BillWithStatus[]> {
+  const supabase = await createClient();
+  const { data: bills } = await supabase
+    .from("bills")
+    .select("*, category:categories(*)")
+    .eq("active", false)
+    .not("installments_total", "is", null)
+    .order("due_day");
+  const withStatus = await withBillStatus(supabase, (bills as Bill[] | null) ?? []);
+
+  // These bills are only ever inactive because their last installment was
+  // paid — force "paid" regardless of which month that landed in, since the
+  // current-month lookup in withBillStatus won't find a payment made in a
+  // prior month.
+  const billIds = withStatus.map((b) => b.id);
+  const { data: lastPayments } = billIds.length
+    ? await supabase
+        .from("bill_payments")
+        .select("bill_id, auto")
+        .in("bill_id", billIds)
+        .not("paid_at", "is", null)
+        .order("month", { ascending: false })
+    : { data: [] };
+  const autoByBillId = new Map<string, boolean>();
+  for (const p of lastPayments ?? []) {
+    if (!autoByBillId.has(p.bill_id)) autoByBillId.set(p.bill_id, p.auto);
+  }
+
+  return withStatus.map((b) => ({
+    ...b,
+    status: "paid" as const,
+    autoMarked: autoByBillId.get(b.id) ?? false,
+  }));
 }
 
 export type Contribution = {

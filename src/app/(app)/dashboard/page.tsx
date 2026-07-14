@@ -44,7 +44,7 @@ export default async function DashboardPage() {
   const pendingBills = bills.filter((bill) => bill.status !== "paid");
   const jointPocket = pockets.find((p) => p.name.toLowerCase().includes("joint"));
   const jointUpcoming = jointPocket
-    ? pendingBills.filter((b) => b.pocket_id === jointPocket.id).reduce((s, b) => s + b.amount, 0)
+    ? pendingBills.filter((b) => b.pocket_id === jointPocket.id).reduce((s, b) => s + b.effectiveAmount, 0)
     : 0;
   const jointProjected = jointPocket ? jointPocket.balance - jointUpcoming : null;
   const lowBalanceAlert =
