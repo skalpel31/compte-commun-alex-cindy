@@ -3,17 +3,49 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Receipt } from "lucide-react";
 import { TransactionRow } from "@/components/transaction-row";
+import { IncomeGroupRow } from "@/components/income-group-row";
 import { getProfiles, getTransactions } from "@/lib/data";
 import { dayLabel } from "@/lib/format";
+import type { Transaction } from "@/lib/types";
+
+/**
+ * An income transaction is auto-split into one row per pocket at entry time
+ * (see createTransaction); those rows share date/description/category/payer
+ * and differ only by pocket_id and amount. Regroup them here so the ledger
+ * shows one line per real-world paycheck instead of one per pocket.
+ */
+function groupIncomeSplits(transactions: Transaction[]): (Transaction | Transaction[])[] {
+  const seen = new Set<string>();
+  const result: (Transaction | Transaction[])[] = [];
+  for (const t of transactions) {
+    if (seen.has(t.id)) continue;
+    if (t.category?.type !== "income") {
+      result.push(t);
+      continue;
+    }
+    const siblings = transactions.filter(
+      (o) =>
+        o.category?.type === "income" &&
+        o.date === t.date &&
+        o.description === t.description &&
+        o.category_id === t.category_id &&
+        o.paid_by === t.paid_by
+    );
+    siblings.forEach((s) => seen.add(s.id));
+    result.push(siblings.length > 1 ? siblings : t);
+  }
+  return result;
+}
 
 export default async function TransactionsPage() {
   const [transactions, profiles] = await Promise.all([getTransactions(), getProfiles()]);
 
-  const groups = new Map<string, typeof transactions>();
-  for (const t of transactions) {
-    const list = groups.get(t.date) ?? [];
-    list.push(t);
-    groups.set(t.date, list);
+  const groups = new Map<string, (Transaction | Transaction[])[]>();
+  for (const item of groupIncomeSplits(transactions)) {
+    const date = Array.isArray(item) ? item[0].date : item.date;
+    const list = groups.get(date) ?? [];
+    list.push(item);
+    groups.set(date, list);
   }
 
   return (
@@ -49,9 +81,13 @@ export default async function TransactionsPage() {
             </p>
             <Card>
               <CardContent className="divide-y">
-                {items.map((t) => (
-                  <TransactionRow key={t.id} transaction={t} profiles={profiles} />
-                ))}
+                {items.map((item) =>
+                  Array.isArray(item) ? (
+                    <IncomeGroupRow key={item[0].id} transactions={item} profiles={profiles} />
+                  ) : (
+                    <TransactionRow key={item.id} transaction={item} profiles={profiles} />
+                  )
+                )}
               </CardContent>
             </Card>
           </div>

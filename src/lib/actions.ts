@@ -118,6 +118,14 @@ export async function deleteTransaction(id: string) {
   revalidateMoneyPaths();
 }
 
+/** Deletes every row of a split income entry (one per pocket) as a single unit. */
+export async function deleteTransactions(ids: string[]) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("transactions").delete().in("id", ids);
+  if (error) throw new Error(error.message);
+  revalidateMoneyPaths();
+}
+
 export type BudgetInput = {
   category_id: string;
   amount_limit: number;
