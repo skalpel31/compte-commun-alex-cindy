@@ -122,15 +122,30 @@ export default async function DashboardPage() {
     new Date()
   );
 
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
+  const todayLabel = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(now);
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Bonjour {currentProfile?.display_name ?? ""} 👋
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Tout votre argent, organisé pour vos objectifs de vie.
-        </p>
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            {greeting}
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {currentProfile?.display_name ?? ""}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Tout votre argent, organisé pour vos objectifs de vie.
+          </p>
+        </div>
+        <p className="hidden shrink-0 text-sm text-muted-foreground sm:block">{todayLabel}</p>
       </div>
 
       <Card className="glass">
