@@ -69,7 +69,7 @@ export type TransactionInput = {
   description: string;
   date: string;
   category_id: string;
-  paid_by: string;
+  paid_by: string | null;
   pocket_id: string | null;
 };
 
@@ -98,15 +98,18 @@ export async function createTransaction(input: TransactionInput) {
 
     // A personal pocket only gets funded by its own owner's income — the
     // percentage that would've gone to the other partner's personal pocket
-    // is redirected to the payer's own personal pocket instead.
-    const otherPersonalPct = pockets
-      .filter((p) => p.owner_id && p.owner_id !== input.paid_by)
-      .reduce((sum, p) => sum + p.allocation_pct, 0);
+    // is redirected to the payer's own personal pocket instead. Income
+    // attributed to Compte Joint itself (no personal payer) skips this
+    // redirection entirely and splits at the plain percentages.
+    const payerId = input.paid_by;
+    const otherPersonalPct = payerId
+      ? pockets.filter((p) => p.owner_id && p.owner_id !== payerId).reduce((sum, p) => sum + p.allocation_pct, 0)
+      : 0;
 
     const rows = pockets
-      .filter((p) => !p.owner_id || p.owner_id === input.paid_by)
+      .filter((p) => !p.owner_id || p.owner_id === payerId)
       .map((p) => {
-        const pct = p.owner_id === input.paid_by ? p.allocation_pct + otherPersonalPct : p.allocation_pct;
+        const pct = payerId && p.owner_id === payerId ? p.allocation_pct + otherPersonalPct : p.allocation_pct;
         return { ...base, amount: Math.round(input.amount * (pct / 100) * 100) / 100, pocket_id: p.id };
       })
       .filter((row) => row.amount > 0);
@@ -261,7 +264,7 @@ export async function deleteBill(id: string) {
   revalidateMoneyPaths();
 }
 
-export async function markBillPaid(billId: string, userId: string) {
+export async function markBillPaid(billId: string, userId: string | null) {
   const supabase = await createClient();
 
   const { data: bill, error: billError } = await supabase

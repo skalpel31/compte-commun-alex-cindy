@@ -30,7 +30,7 @@ export type Transaction = {
   date: string;
   description: string | null;
   category_id: string | null;
-  paid_by: string;
+  paid_by: string | null;
   pocket_id: string | null;
   split_type: "shared" | "personal";
   split_ratio: Record<string, number>;

@@ -18,6 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { createBill, updateBill, type BillInput } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { localDateString } from "@/lib/format";
+import { JOINT_PAYER } from "@/lib/payer";
 import type { Bill, Category, Pocket, Profile } from "@/lib/types";
 
 function BillForm({
@@ -187,7 +188,7 @@ function BillForm({
         </div>
         <div className="flex flex-col gap-2">
           <Label>Payeur habituel</Label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {profiles.map((p) => (
               <button
                 key={p.id}
@@ -203,6 +204,18 @@ function BillForm({
                 {p.display_name}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setPayer(payer === JOINT_PAYER ? "" : JOINT_PAYER)}
+              className={cn(
+                "rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors",
+                payer === JOINT_PAYER
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-muted"
+              )}
+            >
+              Compte Joint
+            </button>
           </div>
           <p className="text-xs text-muted-foreground">
             {autopay

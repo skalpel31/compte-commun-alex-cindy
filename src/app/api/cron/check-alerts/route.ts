@@ -3,6 +3,7 @@ import webpush from "web-push";
 import { createClient as createServerClient } from "@supabase/supabase-js";
 import { currentMonth, formatAmount } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
+import { JOINT_PAYER } from "@/lib/payer";
 
 function adminClient() {
   return createServerClient(
@@ -125,6 +126,7 @@ export async function GET(request: Request) {
       !!bill.start_date &&
       installmentNumberFor(bill.start_date) >= bill.installments_total;
     const amount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
+    const paidBy = bill.default_payer === JOINT_PAYER ? null : bill.default_payer;
 
     const { data: transaction, error: txError } = await supabase
       .from("transactions")
@@ -133,7 +135,7 @@ export async function GET(request: Request) {
         description: bill.name,
         date: todayStr,
         category_id: bill.category_id,
-        paid_by: bill.default_payer,
+        paid_by: paidBy,
         pocket_id,
         split_type: "shared",
         split_ratio: {},
@@ -151,7 +153,7 @@ export async function GET(request: Request) {
         bill_id: bill.id,
         month,
         paid_at: new Date().toISOString(),
-        paid_by: bill.default_payer,
+        paid_by: paidBy,
         transaction_id: transaction.id,
         auto: true,
       },

@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 import { deleteTransaction } from "@/lib/actions";
 import { CategoryIcon, categoryBg } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
+import { payerLabel } from "@/lib/payer";
 import type { Profile, Transaction } from "@/lib/types";
 
 export function TransactionRow({
@@ -16,7 +17,7 @@ export function TransactionRow({
   profiles: Profile[];
 }) {
   const [pending, startTransition] = useTransition();
-  const payer = profiles.find((p) => p.id === transaction.paid_by);
+  const payerName = payerLabel(transaction.paid_by, profiles);
   const isIncome = transaction.category?.type === "income";
 
   function handleDelete() {
@@ -46,7 +47,7 @@ export function TransactionRow({
           {transaction.description || transaction.category?.name || "Sans description"}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {transaction.category?.name} · {payer?.display_name}
+          {transaction.category?.name} · {payerName}
           {transaction.split_type === "personal" && " · personnel"}
         </p>
       </div>

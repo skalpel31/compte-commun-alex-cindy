@@ -6,6 +6,7 @@ import { ChevronDown, Trash2 } from "lucide-react";
 import { deleteTransactions } from "@/lib/actions";
 import { CategoryIcon, categoryBg } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
+import { payerLabel } from "@/lib/payer";
 import type { Profile, Transaction } from "@/lib/types";
 
 export function IncomeGroupRow({
@@ -18,7 +19,7 @@ export function IncomeGroupRow({
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const first = transactions[0];
-  const payer = profiles.find((p) => p.id === first.paid_by);
+  const payerName = payerLabel(first.paid_by, profiles);
   const total = transactions.reduce((sum, t) => sum + t.amount, 0);
 
   function handleDelete() {
@@ -54,7 +55,7 @@ export function IncomeGroupRow({
               {first.description || first.category?.name || "Revenu"}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {first.category?.name} · {payer?.display_name} · réparti dans {transactions.length}{" "}
+              {first.category?.name} · {payerName} · réparti dans {transactions.length}{" "}
               poches
             </p>
           </div>

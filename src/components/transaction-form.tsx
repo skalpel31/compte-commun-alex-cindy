@@ -41,10 +41,11 @@ export function TransactionForm({
     () => categories.find((c) => c.id === initialCategoryId)?.default_pocket_id ?? ""
   );
   const [pocketTouched, setPocketTouched] = useState(false);
-  const [paidBy, setPaidBy] = useState(profiles[0]?.id ?? "");
+  const [paidBy, setPaidBy] = useState<string | null>(profiles[0]?.id ?? null);
 
   const category = categories.find((c) => c.id === categoryId);
   const isIncome = category?.type === "income";
+  const isOther = category?.name === "Autre";
 
   function handleCategoryChange(value: string) {
     setCategoryId(value);
@@ -63,6 +64,10 @@ export function TransactionForm({
     }
     if (!categoryId) {
       toast.error("Choisis une catégorie");
+      return;
+    }
+    if (isOther && !description.trim()) {
+      toast.error("Précise ce que c'est pour la catégorie Autre");
       return;
     }
 
@@ -117,10 +122,12 @@ export function TransactionForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="description">Description</Label>
+        <Label htmlFor="description">
+          Description{isOther && <span className="text-critical"> · précise ce que c&apos;est</span>}
+        </Label>
         <Input
           id="description"
-          placeholder="Courses de la semaine..."
+          placeholder={isOther ? "Ex. réparation vélo, cadeau..." : "Courses de la semaine..."}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
@@ -177,7 +184,7 @@ export function TransactionForm({
 
       <div className="flex flex-col gap-2">
         <Label>Payé par</Label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {profiles.map((p) => (
             <button
               key={p.id}
@@ -193,6 +200,18 @@ export function TransactionForm({
               {p.display_name}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setPaidBy(null)}
+            className={cn(
+              "rounded-lg border px-4 py-3 text-sm font-medium transition-colors",
+              paidBy === null
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background hover:bg-muted"
+            )}
+          >
+            Compte Joint
+          </button>
         </div>
       </div>
 

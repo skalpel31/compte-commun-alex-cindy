@@ -9,6 +9,7 @@ import { EditBillSheet } from "@/components/bill-sheet";
 import { deleteBill, markBillPaid, markBillUnpaid } from "@/lib/actions";
 import { CategoryIcon } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
+import { JOINT_PAYER, payerLabel } from "@/lib/payer";
 import type { BillWithStatus, Category, Pocket, Profile } from "@/lib/types";
 
 const STATUS_META = {
@@ -37,10 +38,10 @@ export function BillRow({
       ? { label: "Prélevée auto", className: "text-good", Icon: Check }
       : STATUS_META[bill.status];
   const StatusIcon = meta.Icon;
-  const payerName = profiles.find((p) => p.id === bill.default_payer)?.display_name;
+  const payerName = bill.default_payer ? payerLabel(bill.default_payer, profiles) : undefined;
   const pocketName = pockets.find((p) => p.id === bill.pocket_id)?.name;
 
-  function pay(userId: string) {
+  function pay(userId: string | null) {
     setPickerOpen(false);
     startTransition(async () => {
       try {
@@ -62,7 +63,7 @@ export function BillRow({
         }
       });
     } else if (bill.default_payer) {
-      pay(bill.default_payer);
+      pay(bill.default_payer === JOINT_PAYER ? null : bill.default_payer);
     } else {
       setPickerOpen(true);
     }
@@ -134,7 +135,7 @@ export function BillRow({
           <SheetHeader>
             <SheetTitle>Qui a payé « {bill.name} » ?</SheetTitle>
           </SheetHeader>
-          <div className="grid grid-cols-2 gap-2 px-4 pb-4">
+          <div className="grid grid-cols-3 gap-2 px-4 pb-4">
             {profiles.map((p) => (
               <button
                 key={p.id}
@@ -145,6 +146,13 @@ export function BillRow({
                 {p.display_name}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => pay(null)}
+              className="rounded-lg border border-border px-4 py-3 text-sm font-medium transition-colors hover:bg-muted"
+            >
+              Compte Joint
+            </button>
           </div>
         </SheetContent>
       </Sheet>
