@@ -47,6 +47,7 @@ function BillForm({
     bill?.installments_total ? String(bill.installments_total) : ""
   );
   const [finalAmount, setFinalAmount] = useState(bill?.final_amount ? String(bill.final_amount) : "");
+  const [firstAmount, setFirstAmount] = useState(bill?.first_amount ? String(bill.first_amount) : "");
   const [startDate, setStartDate] = useState(bill?.start_date ?? localDateString(new Date()));
   const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -80,6 +81,7 @@ function BillForm({
       return;
     }
     const finalAmountNumeric = finalAmount ? parseFloat(finalAmount.replace(",", ".")) : null;
+    const firstAmountNumeric = firstAmount ? parseFloat(firstAmount.replace(",", ".")) : null;
     const input: BillInput = {
       name: name.trim(),
       amount: numericAmount,
@@ -90,6 +92,7 @@ function BillForm({
       autopay,
       installments_total: total,
       final_amount: hasInstallments && finalAmountNumeric ? finalAmountNumeric : null,
+      first_amount: hasInstallments && firstAmountNumeric ? firstAmountNumeric : null,
       start_date: hasInstallments ? startDate : null,
     };
     startTransition(async () => {
@@ -279,16 +282,26 @@ function BillForm({
                   mensualités déjà payées se calcule tout seul.
                 </p>
               </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="bill-installments">Nombre de mensualités</Label>
+                <Input
+                  id="bill-installments"
+                  type="number"
+                  min={1}
+                  placeholder="ex. 4 ou 10"
+                  value={installmentsTotal}
+                  onChange={(e) => setInstallmentsTotal(e.target.value)}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="bill-installments">Nombre de mensualités</Label>
+                  <Label htmlFor="bill-first-amount">Premier montant (si différent)</Label>
                   <Input
-                    id="bill-installments"
-                    type="number"
-                    min={1}
-                    placeholder="ex. 4 ou 10"
-                    value={installmentsTotal}
-                    onChange={(e) => setInstallmentsTotal(e.target.value)}
+                    id="bill-first-amount"
+                    inputMode="decimal"
+                    placeholder={amount || "0,00"}
+                    value={firstAmount}
+                    onChange={(e) => setFirstAmount(e.target.value)}
                   />
                 </div>
                 <div className="flex flex-col gap-2">

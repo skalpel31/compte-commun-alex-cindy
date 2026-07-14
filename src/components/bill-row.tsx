@@ -107,6 +107,9 @@ export function BillRow({
             {bill.isLastInstallment && bill.status !== "paid" && (
               <span className="ml-1 font-medium text-warning">dernier prélèvement</span>
             )}
+            {bill.isFirstInstallment && !bill.isLastInstallment && bill.status !== "paid" && (
+              <span className="ml-1 font-medium text-primary">premier prélèvement</span>
+            )}
           </p>
         </div>
       </button>

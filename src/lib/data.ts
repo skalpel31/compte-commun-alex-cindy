@@ -195,10 +195,25 @@ async function withBillStatus(
       ? installmentNumberFor(bill.start_date)
       : (paidCountByBillId.get(bill.id) ?? 0) + 1;
     const installmentsPaid = Math.max(0, currentInstallment - 1);
+    const isFirstInstallment = !!bill.installments_total && currentInstallment <= 1;
     const isLastInstallment = !!bill.installments_total && currentInstallment >= bill.installments_total;
-    const effectiveAmount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
+    const effectiveAmount =
+      isFirstInstallment && bill.first_amount != null
+        ? bill.first_amount
+        : isLastInstallment && bill.final_amount != null
+          ? bill.final_amount
+          : bill.amount;
 
-    return { ...bill, status, dueDate, autoMarked: !!payment?.auto, installmentsPaid, isLastInstallment, effectiveAmount };
+    return {
+      ...bill,
+      status,
+      dueDate,
+      autoMarked: !!payment?.auto,
+      installmentsPaid,
+      isFirstInstallment,
+      isLastInstallment,
+      effectiveAmount,
+    };
   });
 }
 

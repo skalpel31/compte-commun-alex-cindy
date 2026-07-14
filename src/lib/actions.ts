@@ -232,6 +232,7 @@ export type BillInput = {
   autopay: boolean;
   installments_total: number | null;
   final_amount: number | null;
+  first_amount: number | null;
   start_date: string | null;
 };
 
@@ -271,7 +272,7 @@ export async function markBillPaid(billId: string, userId: string | null) {
   const { data: bill, error: billError } = await supabase
     .from("bills")
     .select(
-      "name, amount, category_id, pocket_id, installments_total, final_amount, start_date, category:categories(default_pocket_id)"
+      "name, amount, category_id, pocket_id, installments_total, final_amount, first_amount, start_date, category:categories(default_pocket_id)"
     )
     .eq("id", billId)
     .single();
@@ -280,9 +281,16 @@ export async function markBillPaid(billId: string, userId: string | null) {
   const category = bill.category as unknown as { default_pocket_id: string | null } | null;
   const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
 
+  const currentInstallment = bill.start_date ? installmentNumberFor(bill.start_date) : null;
+  const isFirstInstallment = !!bill.installments_total && currentInstallment !== null && currentInstallment <= 1;
   const isLastInstallment =
-    !!bill.installments_total && !!bill.start_date && installmentNumberFor(bill.start_date) >= bill.installments_total;
-  const amount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
+    !!bill.installments_total && currentInstallment !== null && currentInstallment >= bill.installments_total;
+  const amount =
+    isFirstInstallment && bill.first_amount != null
+      ? bill.first_amount
+      : isLastInstallment && bill.final_amount != null
+        ? bill.final_amount
+        : bill.amount;
 
   const { data: transaction, error: txError } = await supabase
     .from("transactions")

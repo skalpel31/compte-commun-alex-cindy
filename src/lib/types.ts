@@ -74,6 +74,7 @@ export type Bill = {
   active: boolean;
   installments_total: number | null;
   final_amount: number | null;
+  first_amount: number | null;
   start_date: string | null;
   category: Category | null;
 };
@@ -82,6 +83,7 @@ export type BillWithStatus = Bill & {
   status: "paid" | "overdue" | "upcoming" | "later";
   dueDate: string;
   autoMarked: boolean;
+  isFirstInstallment: boolean;
   installmentsPaid: number;
   isLastInstallment: boolean;
   effectiveAmount: number;

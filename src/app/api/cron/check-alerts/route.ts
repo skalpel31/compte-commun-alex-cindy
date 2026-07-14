@@ -121,11 +121,16 @@ export async function GET(request: Request) {
       : { data: null };
     const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
 
+    const currentInstallment = bill.start_date ? installmentNumberFor(bill.start_date) : null;
+    const isFirstInstallment = !!bill.installments_total && currentInstallment !== null && currentInstallment <= 1;
     const isLastInstallment =
-      !!bill.installments_total &&
-      !!bill.start_date &&
-      installmentNumberFor(bill.start_date) >= bill.installments_total;
-    const amount = isLastInstallment && bill.final_amount != null ? bill.final_amount : bill.amount;
+      !!bill.installments_total && currentInstallment !== null && currentInstallment >= bill.installments_total;
+    const amount =
+      isFirstInstallment && bill.first_amount != null
+        ? bill.first_amount
+        : isLastInstallment && bill.final_amount != null
+          ? bill.final_amount
+          : bill.amount;
     const paidBy = bill.default_payer === JOINT_PAYER ? null : bill.default_payer;
 
     const { data: transaction, error: txError } = await supabase
