@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
-import { createBill, updateBill, type BillInput } from "@/lib/actions";
+import { createBill, markBillPaid, updateBill, type BillInput } from "@/lib/actions";
 import { cn } from "@/lib/utils";
 import { localDateString } from "@/lib/format";
 import { JOINT_PAYER } from "@/lib/payer";
@@ -48,6 +48,7 @@ function BillForm({
   );
   const [finalAmount, setFinalAmount] = useState(bill?.final_amount ? String(bill.final_amount) : "");
   const [startDate, setStartDate] = useState(bill?.start_date ?? localDateString(new Date()));
+  const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function handleCategoryChange(value: string) {
@@ -74,6 +75,10 @@ function BillForm({
       toast.error("Indique depuis quand tu paies déjà");
       return;
     }
+    if (!bill && alreadyPaid && !payer) {
+      toast.error("Choisis qui a payé pour la marquer payée");
+      return;
+    }
     const finalAmountNumeric = finalAmount ? parseFloat(finalAmount.replace(",", ".")) : null;
     const input: BillInput = {
       name: name.trim(),
@@ -93,8 +98,11 @@ function BillForm({
           await updateBill(bill.id, input);
           toast.success("Facture mise à jour");
         } else {
-          await createBill(input);
-          toast.success("Facture ajoutée");
+          const newBillId = await createBill(input);
+          if (alreadyPaid) {
+            await markBillPaid(newBillId, payer === JOINT_PAYER ? null : payer);
+          }
+          toast.success(alreadyPaid ? "Facture ajoutée, déjà marquée payée ce mois-ci" : "Facture ajoutée");
         }
         onDone();
       } catch (err) {
@@ -223,6 +231,18 @@ function BillForm({
               : "Optionnel — sinon on te demandera qui a payé à chaque fois."}
           </p>
         </div>
+        {!bill && (
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div>
+              <p className="text-sm font-medium">Déjà payée ce mois-ci</p>
+              <p className="text-xs text-muted-foreground">
+                Pour une charge régulière déjà réglée — évite qu&apos;elle s&apos;affiche « en
+                retard »
+              </p>
+            </div>
+            <Switch checked={alreadyPaid} onCheckedChange={setAlreadyPaid} />
+          </div>
+        )}
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div>
             <p className="text-sm font-medium">Prélèvement automatique</p>

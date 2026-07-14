@@ -235,12 +235,13 @@ export type BillInput = {
   start_date: string | null;
 };
 
-export async function createBill(input: BillInput) {
+export async function createBill(input: BillInput): Promise<string> {
   const supabase = await createClient();
-  const { error } = await supabase.from("bills").insert(input);
+  const { data, error } = await supabase.from("bills").insert(input).select("id").single();
   if (error) throw new Error(error.message);
   await syncCategoryBudgetFromBills(supabase, input.category_id);
   revalidateMoneyPaths();
+  return data.id;
 }
 
 export async function updateBill(id: string, input: BillInput) {
@@ -364,6 +365,30 @@ export async function deleteGoal(id: string) {
 export async function updatePocketAllocation(id: string, allocation_pct: number) {
   const supabase = await createClient();
   const { error } = await supabase.from("pockets").update({ allocation_pct }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  revalidateMoneyPaths();
+}
+
+export type PocketInput = {
+  name: string;
+  icon: string;
+  color: string;
+  allocation_pct: number;
+};
+
+export async function createPocket(input: PocketInput) {
+  const supabase = await createClient();
+  const { count } = await supabase.from("pockets").select("id", { count: "exact", head: true });
+  const { error } = await supabase.from("pockets").insert({ ...input, sort_order: count ?? 0 });
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  revalidateMoneyPaths();
+}
+
+export async function deletePocket(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("pockets").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
   revalidateMoneyPaths();
