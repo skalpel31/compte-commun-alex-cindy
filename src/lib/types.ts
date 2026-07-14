@@ -78,4 +78,5 @@ export type Bill = {
 export type BillWithStatus = Bill & {
   status: "paid" | "overdue" | "upcoming" | "later";
   dueDate: string;
+  autoMarked: boolean;
 };

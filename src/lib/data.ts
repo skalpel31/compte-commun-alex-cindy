@@ -159,19 +159,18 @@ export async function getBills(): Promise<BillWithStatus[]> {
   const month = currentMonth();
   const [{ data: bills }, { data: payments }] = await Promise.all([
     supabase.from("bills").select("*, category:categories(*)").eq("active", true).order("due_day"),
-    supabase.from("bill_payments").select("bill_id, paid_at").eq("month", month),
+    supabase.from("bill_payments").select("bill_id, paid_at, auto").eq("month", month),
   ]);
 
   const today = new Date();
   const todayStr = localDateString(today);
-  const paidIds = new Set(
-    (payments ?? []).filter((p) => p.paid_at).map((p) => p.bill_id as string)
-  );
+  const paidByBillId = new Map((payments ?? []).filter((p) => p.paid_at).map((p) => [p.bill_id as string, p]));
 
   return ((bills as Bill[] | null) ?? []).map((bill) => {
     const dueDate = `${month.slice(0, 7)}-${String(bill.due_day).padStart(2, "0")}`;
+    const payment = paidByBillId.get(bill.id);
     let status: BillWithStatus["status"];
-    if (paidIds.has(bill.id)) status = "paid";
+    if (payment) status = "paid";
     else if (dueDate < todayStr) status = "overdue";
     else {
       const diffDays = Math.round(
@@ -180,7 +179,7 @@ export async function getBills(): Promise<BillWithStatus[]> {
       );
       status = diffDays <= 5 ? "upcoming" : "later";
     }
-    return { ...bill, status, dueDate };
+    return { ...bill, status, dueDate, autoMarked: !!payment?.auto };
   });
 }
 

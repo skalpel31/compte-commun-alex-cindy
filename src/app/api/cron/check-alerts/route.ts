@@ -98,6 +98,66 @@ export async function GET(request: Request) {
   const { data: bills } = await supabase.from("bills").select("*").eq("active", true);
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
+  const todayDay = today.getDate();
+
+  // --- Autopay bills: mark paid automatically once the due day has passed,
+  // recording the real transaction just like a manual "marquer payée" would.
+  for (const bill of bills ?? []) {
+    if (!bill.autopay || !bill.default_payer) continue;
+    if (todayDay < bill.due_day) continue;
+
+    const { data: existing } = await supabase
+      .from("bill_payments")
+      .select("id")
+      .eq("bill_id", bill.id)
+      .eq("month", month)
+      .maybeSingle();
+    if (existing) continue;
+
+    const { data: category } = bill.category_id
+      ? await supabase.from("categories").select("default_pocket_id").eq("id", bill.category_id).single()
+      : { data: null };
+    const pocket_id = bill.pocket_id ?? category?.default_pocket_id ?? null;
+
+    const { data: transaction, error: txError } = await supabase
+      .from("transactions")
+      .insert({
+        amount: bill.amount,
+        description: bill.name,
+        date: todayStr,
+        category_id: bill.category_id,
+        paid_by: bill.default_payer,
+        pocket_id,
+        split_type: "shared",
+        split_ratio: {},
+      })
+      .select("id")
+      .single();
+    if (txError) continue;
+
+    await supabase.from("bill_payments").upsert(
+      {
+        bill_id: bill.id,
+        month,
+        paid_at: new Date().toISOString(),
+        paid_by: bill.default_payer,
+        transaction_id: transaction.id,
+        auto: true,
+      },
+      { onConflict: "bill_id,month" }
+    );
+
+    for (const userId of userIds) {
+      await sendPush(
+        supabase,
+        userId,
+        `Facture prélevée automatiquement : ${bill.name}`,
+        `${formatAmount(Number(bill.amount))} — si ce prélèvement n'a pas réellement eu lieu, décoche-la dans Factures.`,
+        "/bills"
+      );
+    }
+    results.push(`bill:${bill.name}:autopaid`);
+  }
 
   for (const bill of bills ?? []) {
     const { data: payment } = await supabase

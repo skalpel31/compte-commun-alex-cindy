@@ -185,13 +185,19 @@ function BillForm({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Optionnel — sinon on te demandera qui a payé à chaque fois.
+            {autopay
+              ? "Nécessaire pour que le prélèvement automatique se marque tout seul."
+              : "Optionnel — sinon on te demandera qui a payé à chaque fois."}
           </p>
         </div>
         <div className="flex items-center justify-between rounded-lg border p-3">
           <div>
             <p className="text-sm font-medium">Prélèvement automatique</p>
-            <p className="text-xs text-muted-foreground">Pas besoin de la marquer payée</p>
+            <p className="text-xs text-muted-foreground">
+              {autopay && !payer
+                ? "Choisis un payeur habituel ci-dessus pour l'activer"
+                : "Se marque payée toute seule à la date d'échéance"}
+            </p>
           </div>
           <Switch checked={autopay} onCheckedChange={setAutopay} />
         </div>
