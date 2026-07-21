@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Target, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import { formatAmount } from "@/lib/format";
 import type { Goal, Pocket } from "@/lib/types";
 
 function GoalCard({ goal }: { goal: Goal }) {
+  const router = useRouter();
   const [contribution, setContribution] = useState("");
   const [pending, startTransition] = useTransition();
   const pct = Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100));
@@ -35,6 +37,7 @@ function GoalCard({ goal }: { goal: Goal }) {
         await contributeToGoal(goal.id, amount);
         setContribution("");
         toast.success("Épargne ajoutée");
+        router.refresh();
       } catch (err) {
         toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
       }
@@ -46,6 +49,7 @@ function GoalCard({ goal }: { goal: Goal }) {
       try {
         await deleteGoal(goal.id);
         toast.success("Objectif supprimé");
+        router.refresh();
       } catch (err) {
         toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
       }
@@ -95,6 +99,7 @@ function GoalCard({ goal }: { goal: Goal }) {
 }
 
 function NewGoalSheet({ pockets }: { pockets: Pocket[] }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
@@ -121,6 +126,7 @@ function NewGoalSheet({ pockets }: { pockets: Pocket[] }) {
         setTarget("");
         setDate("");
         setOpen(false);
+        router.refresh();
       } catch (err) {
         toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
       }
@@ -163,7 +169,7 @@ function NewGoalSheet({ pockets }: { pockets: Pocket[] }) {
               <Input id="goal-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="flex flex-col gap-2">
-              <Label>Poche liée (optionnel)</Label>
+              <Label>Compte lié (optionnel)</Label>
               <Select value={pocketId} onValueChange={(v) => setPocketId(v ?? "none")}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Aucune">

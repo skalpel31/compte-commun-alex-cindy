@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Receipt } from "lucide-react";
 import { TransactionRow } from "@/components/transaction-row";
 import { IncomeGroupRow } from "@/components/income-group-row";
-import { getProfiles, getTransactions } from "@/lib/data";
+import { getCurrentHouseholdId, getProfiles, getTransactions } from "@/lib/data";
 import { dayLabel } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 
@@ -38,7 +38,11 @@ function groupIncomeSplits(transactions: Transaction[]): (Transaction | Transact
 }
 
 export default async function TransactionsPage() {
-  const [transactions, profiles] = await Promise.all([getTransactions(), getProfiles()]);
+  const [transactions, profiles, householdId] = await Promise.all([
+    getTransactions(),
+    getProfiles(),
+    getCurrentHouseholdId(),
+  ]);
 
   const groups = new Map<string, (Transaction | Transaction[])[]>();
   for (const item of groupIncomeSplits(transactions)) {
@@ -85,7 +89,12 @@ export default async function TransactionsPage() {
                   Array.isArray(item) ? (
                     <IncomeGroupRow key={item[0].id} transactions={item} profiles={profiles} />
                   ) : (
-                    <TransactionRow key={item.id} transaction={item} profiles={profiles} />
+                    <TransactionRow
+                      key={item.id}
+                      transaction={item}
+                      profiles={profiles}
+                      householdId={householdId}
+                    />
                   )
                 )}
               </CardContent>

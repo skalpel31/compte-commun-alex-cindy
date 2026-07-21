@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { SidebarNav, BottomNav } from "@/components/nav-link";
+import { AdminNavLink } from "@/components/admin-nav-link";
 import { LogoutButton } from "@/components/logout-button";
 import { BrandMark } from "@/components/brand-mark";
-import { getBills, getProfiles } from "@/lib/data";
+import { getBills, getHousehold, getProfiles } from "@/lib/data";
 import { currentMonth, monthLabel } from "@/lib/format";
+import { isSuperAdmin } from "@/lib/admin";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const [bills, profiles] = await Promise.all([getBills(), getProfiles()]);
+  const [bills, profiles, household, superAdmin] = await Promise.all([
+    getBills(),
+    getProfiles(),
+    getHousehold(),
+    isSuperAdmin(),
+  ]);
   const alertCount = bills.filter((b) => b.status === "overdue" || b.status === "upcoming").length;
 
   return (
@@ -20,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </p>
         </div>
         <SidebarNav />
+        {superAdmin && <AdminNavLink />}
         <div className="mt-auto flex items-center gap-2 rounded-lg border p-2">
           <div className="flex -space-x-2">
             {profiles.slice(0, 2).map((p) => (
@@ -35,7 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <p className="truncate text-sm font-medium">
               {profiles.map((p) => p.display_name).join(" & ") || "Foyer"}
             </p>
-            <p className="truncate text-xs text-muted-foreground">Famille · 3 enfants</p>
+            <p className="truncate text-xs text-muted-foreground">{household.name}</p>
           </div>
         </div>
       </aside>

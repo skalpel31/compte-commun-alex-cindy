@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ChevronDown, Trash2 } from "lucide-react";
 import { deleteTransactions } from "@/lib/actions";
@@ -16,6 +17,7 @@ export function IncomeGroupRow({
   transactions: Transaction[];
   profiles: Profile[];
 }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [pending, startTransition] = useTransition();
   const first = transactions[0];
@@ -27,6 +29,7 @@ export function IncomeGroupRow({
       try {
         await deleteTransactions(transactions.map((t) => t.id));
         toast.success("Revenu supprimé");
+        router.refresh();
       } catch (err) {
         toast.error("Suppression impossible", {
           description: err instanceof Error ? err.message : undefined,
@@ -56,7 +59,7 @@ export function IncomeGroupRow({
             </p>
             <p className="truncate text-xs text-muted-foreground">
               {first.category?.name} · {payerName} · réparti dans {transactions.length}{" "}
-              poches
+              comptes
             </p>
           </div>
           <p className="shrink-0 text-sm font-semibold text-good">+{formatAmount(total)}</p>
@@ -79,7 +82,7 @@ export function IncomeGroupRow({
         <div className="ml-12 mt-2 flex flex-col gap-1.5 border-l pl-3">
           {transactions.map((t) => (
             <div key={t.id} className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{t.pocket?.name ?? "Poche inconnue"}</span>
+              <span className="text-muted-foreground">{t.pocket?.name ?? "Compte inconnu"}</span>
               <span className="font-medium tabular-nums">{formatAmount(t.amount)}</span>
             </div>
           ))}

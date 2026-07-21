@@ -1,4 +1,4 @@
-import { RefreshCw, Sparkles, TrendingUp } from "lucide-react";
+import { Receipt, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import { AdvisorCard, type AdvisorItem } from "@/components/advisor-card";
 import { AdvisorChat } from "@/components/advisor-chat";
 import { getBills, getGoals, getMonthIncome, getMonthTransactions, getPocketBalances } from "@/lib/data";
@@ -25,7 +25,19 @@ export default async function ConseillerIaPage() {
       t.pocket_id !== t.category.default_pocket_id
   );
 
-  const items: AdvisorItem[] = [];
+  const monthSpend = monthTransactions
+    .filter((t) => t.category?.type !== "income")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const items: AdvisorItem[] = [
+    {
+      icon: Receipt,
+      tone: "info",
+      text: `Vous avez dépensé ${formatAmount(monthSpend)} au total sur l'argent du foyer ce mois-ci.`,
+      actionLabel: "Voir le détail",
+      actionHref: "/transactions",
+    },
+  ];
   if (jointPocket && jointPocket.balance > 200) {
     const potential = Math.round(jointPocket.balance * 0.1);
     if (potential >= 20) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ function BillForm({
   const [startDate, setStartDate] = useState(bill?.start_date ?? localDateString(new Date()));
   const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function handleCategoryChange(value: string) {
     setCategoryId(value);
@@ -108,6 +110,7 @@ function BillForm({
           toast.success(alreadyPaid ? "Facture ajoutée, déjà marquée payée ce mois-ci" : "Facture ajoutée");
         }
         onDone();
+        router.refresh();
       } catch (err) {
         toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
       }
@@ -171,7 +174,7 @@ function BillForm({
             </Select>
           </div>
           <div className="flex flex-col gap-2">
-            <Label>Poche</Label>
+            <Label>Compte</Label>
             <Select
               value={pocketId}
               onValueChange={(v) => {

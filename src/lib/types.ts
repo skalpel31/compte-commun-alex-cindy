@@ -2,6 +2,8 @@ export type Profile = {
   id: string;
   display_name: string;
   avatar_url: string | null;
+  user_id: string | null;
+  claim_code: string | null;
 };
 
 export type Pocket = {
@@ -10,8 +12,11 @@ export type Pocket = {
   icon: string;
   color: string;
   owner_id: string | null;
+  custom_owner_label: string | null;
   allocation_pct: number;
   sort_order: number;
+  receives_surplus: boolean;
+  is_savings: boolean;
 };
 
 export type Category = {
@@ -21,6 +26,8 @@ export type Category = {
   color: string | null;
   type: "expense" | "income";
   default_pocket_id: string | null;
+  budget_rollover: boolean;
+  is_savings: boolean;
 };
 
 export type Transaction = {
@@ -39,6 +46,7 @@ export type Transaction = {
   created_at: string;
   category: Category | null;
   pocket: Pocket | null;
+  receipt_url: string | null;
 };
 
 export type Budget = {
@@ -76,6 +84,7 @@ export type Bill = {
   final_amount: number | null;
   first_amount: number | null;
   start_date: string | null;
+  receipt_url: string | null;
   category: Category | null;
 };
 

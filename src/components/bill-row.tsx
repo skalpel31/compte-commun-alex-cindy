@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, CircleAlert, Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { deleteBill, markBillPaid, markBillUnpaid } from "@/lib/actions";
 import { CategoryIcon } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
 import { JOINT_PAYER, payerLabel } from "@/lib/payer";
+import { ReceiptUpload } from "@/components/receipt-upload";
 import type { BillWithStatus, Category, Pocket, Profile } from "@/lib/types";
 
 const STATUS_META = {
@@ -24,12 +26,15 @@ export function BillRow({
   profiles,
   categories,
   pockets,
+  householdId,
 }: {
   bill: BillWithStatus;
   profiles: Profile[];
   categories: Category[];
   pockets: Pocket[];
+  householdId: string;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -47,6 +52,7 @@ export function BillRow({
       try {
         await markBillPaid(bill.id, userId);
         toast.success(`${bill.name} marquée payée`);
+        router.refresh();
       } catch (err) {
         toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
       }
@@ -58,6 +64,7 @@ export function BillRow({
       startTransition(async () => {
         try {
           await markBillUnpaid(bill.id);
+          router.refresh();
         } catch (err) {
           toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
         }
@@ -75,6 +82,7 @@ export function BillRow({
       try {
         await deleteBill(bill.id);
         toast.success("Facture supprimée");
+        router.refresh();
       } catch (err) {
         toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
       }
@@ -82,56 +90,67 @@ export function BillRow({
   }
 
   return (
-    <div className="flex items-center gap-3 py-3">
-      <button
-        type="button"
-        onClick={() => setEditOpen(true)}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-      >
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
-          <CategoryIcon icon={bill.category?.icon ?? null} className="size-5 text-muted-foreground" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{bill.name}</p>
-          <p className="text-xs text-muted-foreground">
-            <span className={`inline-flex items-center gap-1 ${meta.className}`}>
-              {bill.status !== "later" && <StatusIcon className="size-3" />}
-              {bill.status === "later"
-                ? `Le ${bill.due_day} du mois`
-                : `${meta.label} · le ${bill.due_day}`}
-            </span>
-            {payerName && ` · ${payerName}`}
-            {pocketName && ` · ${pocketName}`}
-            {bill.installments_total &&
-              ` · ${Math.min(bill.installmentsPaid + 1, bill.installments_total)}/${bill.installments_total}`}
-            {bill.isLastInstallment && bill.status !== "paid" && (
-              <span className="ml-1 font-medium text-warning">dernier prélèvement</span>
-            )}
-            {bill.isFirstInstallment && !bill.isLastInstallment && bill.status !== "paid" && (
-              <span className="ml-1 font-medium text-primary">premier prélèvement</span>
-            )}
-          </p>
-        </div>
-      </button>
-      <p className="shrink-0 text-sm font-semibold">{formatAmount(bill.effectiveAmount)}</p>
-      <Button
-        size="icon-sm"
-        variant={bill.status === "paid" ? "secondary" : "outline"}
-        disabled={pending}
-        onClick={handleCheckClick}
-        aria-label={bill.status === "paid" ? "Marquer non payée" : "Marquer payée"}
-      >
-        <Check className="size-4" />
-      </Button>
-      <button
-        type="button"
-        onClick={handleDelete}
-        disabled={pending}
-        aria-label="Supprimer"
-        className="shrink-0 p-1.5 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
-      >
-        <Trash2 className="size-4" />
-      </button>
+    <div className="flex flex-col gap-1 py-3">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setEditOpen(true)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        >
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+            <CategoryIcon icon={bill.category?.icon ?? null} className="size-5 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{bill.name}</p>
+            <p className="text-xs text-muted-foreground">
+              <span className={`inline-flex items-center gap-1 ${meta.className}`}>
+                {bill.status !== "later" && <StatusIcon className="size-3" />}
+                {bill.status === "later"
+                  ? `Le ${bill.due_day} du mois`
+                  : `${meta.label} · le ${bill.due_day}`}
+              </span>
+              {payerName && ` · ${payerName}`}
+              {pocketName && ` · ${pocketName}`}
+              {bill.installments_total &&
+                ` · ${Math.min(bill.installmentsPaid + 1, bill.installments_total)}/${bill.installments_total}`}
+              {bill.isLastInstallment && bill.status !== "paid" && (
+                <span className="ml-1 font-medium text-warning">dernier prélèvement</span>
+              )}
+              {bill.isFirstInstallment && !bill.isLastInstallment && bill.status !== "paid" && (
+                <span className="ml-1 font-medium text-primary">premier prélèvement</span>
+              )}
+            </p>
+          </div>
+        </button>
+        <p className="shrink-0 text-sm font-semibold">{formatAmount(bill.effectiveAmount)}</p>
+        <Button
+          size="icon-sm"
+          variant={bill.status === "paid" ? "secondary" : "outline"}
+          disabled={pending}
+          onClick={handleCheckClick}
+          aria-label={bill.status === "paid" ? "Marquer non payée" : "Marquer payée"}
+        >
+          <Check className="size-4" />
+        </Button>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={pending}
+          aria-label="Supprimer"
+          className="shrink-0 p-1.5 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+
+      <div className="pl-[52px]">
+        <ReceiptUpload
+          table="bills"
+          id={bill.id}
+          householdId={householdId}
+          receiptUrl={bill.receipt_url}
+        />
+      </div>
 
       <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
         <SheetContent side="bottom" className="mx-auto max-w-lg rounded-t-2xl">

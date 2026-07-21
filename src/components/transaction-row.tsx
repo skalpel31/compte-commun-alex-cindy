@@ -1,21 +1,26 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { deleteTransaction } from "@/lib/actions";
 import { CategoryIcon, categoryBg } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
 import { payerLabel } from "@/lib/payer";
+import { ReceiptUpload } from "@/components/receipt-upload";
 import type { Profile, Transaction } from "@/lib/types";
 
 export function TransactionRow({
   transaction,
   profiles,
+  householdId,
 }: {
   transaction: Transaction;
   profiles: Profile[];
+  householdId: string;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const payerName = payerLabel(transaction.paid_by, profiles);
   const isIncome = transaction.category?.type === "income";
@@ -25,6 +30,7 @@ export function TransactionRow({
       try {
         await deleteTransaction(transaction.id);
         toast.success("Transaction supprimée");
+        router.refresh();
       } catch (err) {
         toast.error("Suppression impossible", {
           description: err instanceof Error ? err.message : undefined,
@@ -50,6 +56,12 @@ export function TransactionRow({
           {transaction.category?.name} · {payerName}
           {transaction.split_type === "personal" && " · personnel"}
         </p>
+        <ReceiptUpload
+          table="transactions"
+          id={transaction.id}
+          householdId={householdId}
+          receiptUrl={transaction.receipt_url}
+        />
       </div>
       <p className={`shrink-0 text-sm font-semibold ${isIncome ? "text-good" : ""}`}>
         {isIncome ? "+" : "-"}

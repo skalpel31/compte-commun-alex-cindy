@@ -1,24 +1,36 @@
 import Link from "next/link";
-import { ArrowRight, RefreshCw, Sparkles, Target, TrendingUp, Wallet } from "lucide-react";
+import {
+  ArrowRight,
+  CircleCheck,
+  Receipt,
+  RefreshCw,
+  Sparkles,
+  Target,
+  TrendingUp,
+  TriangleAlert,
+  Wallet,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MoneyFlowCard } from "@/components/money-flow-card";
-import { AccountsCard } from "@/components/accounts-card";
+import { TransferInstructionsCard } from "@/components/transfer-instructions-card";
 import { AdvisorCard, type AdvisorItem } from "@/components/advisor-card";
 import { PocketUsageDonut } from "@/components/pocket-usage-donut";
-import { AllocationRules } from "@/components/allocation-rules";
 import { RecentExpensesTable } from "@/components/recent-expenses-table";
 import { SmartAlertCard } from "@/components/smart-alert-card";
+import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
 import {
   getBills,
+  getBudgets,
   getCategories,
   getCurrentProfile,
   getGoals,
   getMonthIncome,
   getMonthTransactions,
   getPocketBalances,
+  getProfiles,
   getTransactions,
 } from "@/lib/data";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 
 export default async function DashboardPage() {
   const [
@@ -28,8 +40,10 @@ export default async function DashboardPage() {
     goals,
     pockets,
     currentProfile,
-    { sources: incomeSources, total: incomeTotal, byPocket: incomeByPocket },
+    { sources: incomeSources, total: incomeTotal, byPayerPocket },
     categories,
+    profiles,
+    budgets,
   ] = await Promise.all([
     getMonthTransactions(),
     getTransactions(6),
@@ -39,6 +53,8 @@ export default async function DashboardPage() {
     getCurrentProfile(),
     getMonthIncome(),
     getCategories(),
+    getProfiles(),
+    getBudgets(),
   ]);
 
   const pendingBills = bills.filter((bill) => bill.status !== "paid");
@@ -51,6 +67,49 @@ export default async function DashboardPage() {
     jointPocket && jointProjected !== null && jointProjected < 500 && jointUpcoming > 0;
 
   const totalFixedCharges = bills.reduce((s, b) => s + b.effectiveAmount, 0);
+
+  // Same pocket-resolution rule as when a bill actually gets paid (its own
+  // pocket_id, falling back to its category's default) — so "who owes how
+  // much fixed" lines up with where the money will actually come from.
+  const fixedChargesByPocket = new Map<string, number>();
+  for (const b of bills) {
+    const pocketId = b.pocket_id ?? b.category?.default_pocket_id ?? null;
+    if (!pocketId) continue;
+    fixedChargesByPocket.set(pocketId, (fixedChargesByPocket.get(pocketId) ?? 0) + b.effectiveAmount);
+  }
+
+  // Budgets the user set by hand for recurring discretionary spending
+  // (Courses, essences, Cigarettes...) as opposed to "auto" budgets, which
+  // just mirror what's already counted under Charges fixes du foyer via
+  // bills — summing those here too would double-count the same money.
+  const manualBudgets = budgets.filter((b) => !b.auto && b.category?.type === "expense");
+  const totalFixedExpenses = manualBudgets.reduce((s, b) => s + b.amount_limit, 0);
+
+  const negativePockets = pockets.filter((p) => p.balance < 0);
+  const overdueBills = pendingBills.filter((b) => b.status === "overdue");
+
+  let householdStatus: "good" | "warning" | "critical" = "good";
+  let householdHeadline = "L'organisation du foyer est ok.";
+  let householdDetail: string | null = null;
+
+  if (negativePockets.length > 0) {
+    householdStatus = "critical";
+    householdHeadline =
+      negativePockets.length > 1
+        ? `${negativePockets.length} comptes sont dans le rouge.`
+        : "Un compte est dans le rouge.";
+    householdDetail = negativePockets
+      .map((p) => `${p.name} (${formatAmount(p.balance)})`)
+      .join(" · ");
+  } else if (overdueBills.length > 0) {
+    householdStatus = "critical";
+    householdHeadline = `${overdueBills.length} facture${overdueBills.length > 1 ? "s" : ""} en retard.`;
+    householdDetail = `${overdueBills[0].name} devait être payée le ${formatDate(overdueBills[0].dueDate)}.`;
+  } else if (lowBalanceAlert) {
+    householdStatus = "warning";
+    householdHeadline = "Le compte joint va être serré.";
+    householdDetail = `${jointPocket!.name} passera à ${formatAmount(jointProjected!)} après les prélèvements à venir.`;
+  }
 
   const monthSpend = monthTransactions
     .filter((t) => t.category?.type !== "income")
@@ -85,7 +144,15 @@ export default async function DashboardPage() {
       t.pocket_id !== t.category.default_pocket_id
   );
 
-  const advisorItems: AdvisorItem[] = [];
+  const advisorItems: AdvisorItem[] = [
+    {
+      icon: Receipt,
+      tone: "info",
+      text: `Vous avez dépensé ${formatAmount(monthSpend)} au total sur l'argent du foyer ce mois-ci.`,
+      actionLabel: "Voir le détail",
+      actionHref: "/transactions",
+    },
+  ];
   if (jointPocket && jointPocket.balance > 200) {
     const potential = Math.round(jointPocket.balance * 0.1);
     if (potential >= 20) {
@@ -124,7 +191,7 @@ export default async function DashboardPage() {
 
   const now = new Date();
   const hour = now.getHours();
-  const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
+  const greeting = hour < 18 ? "Bonjour" : "Bonsoir";
   const todayLabel = new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",
     day: "numeric",
@@ -133,33 +200,82 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4">
-      <div className="flex items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            {greeting}
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {currentProfile?.display_name ?? ""}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Tout votre argent, organisé pour vos objectifs de vie.
-          </p>
-        </div>
-        <p className="hidden shrink-0 text-sm text-muted-foreground sm:block">{todayLabel}</p>
+      <div className="flex flex-col gap-1.5">
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          {greeting}
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">
+          {currentProfile?.display_name ?? ""}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {todayLabel} · Tout votre argent, organisé pour vos objectifs de vie.
+        </p>
       </div>
 
-      <Card className="glass">
-        <CardContent className="flex items-center gap-3 py-4">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Wallet className="size-4" />
+      <Card
+        className={`glass ${
+          householdStatus === "critical"
+            ? "border-critical/30"
+            : householdStatus === "warning"
+              ? "border-warning/30"
+              : "border-good/30"
+        }`}
+      >
+        <CardContent className="flex flex-wrap items-center gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div
+              className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
+                householdStatus === "critical"
+                  ? "bg-critical/10 text-critical"
+                  : householdStatus === "warning"
+                    ? "bg-warning/10 text-warning"
+                    : "bg-good/10 text-good"
+              }`}
+            >
+              {householdStatus === "good" ? (
+                <CircleCheck className="size-4" />
+              ) : (
+                <TriangleAlert className="size-4" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p
+                className={`text-sm font-medium ${
+                  householdStatus === "critical"
+                    ? "text-critical"
+                    : householdStatus === "warning"
+                      ? "text-warning"
+                      : "text-good"
+                }`}
+              >
+                {householdHeadline}
+              </p>
+              {householdDetail && (
+                <p className="text-xs text-muted-foreground">{householdDetail}</p>
+              )}
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground">Charges fixes du foyer</p>
-            <p className="text-xl font-semibold tabular-nums">{formatAmount(totalFixedCharges)}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {pockets.map((p) => (
+              <div
+                key={p.id}
+                className="flex w-32 shrink-0 flex-col gap-1 rounded-xl border p-2"
+              >
+                <div className={`flex size-5 items-center justify-center rounded-full text-white ${categoryBg(p.color)}`}>
+                  <CategoryIcon icon={p.icon} className="size-3" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[0.65rem] leading-tight text-muted-foreground">{p.name}</p>
+                  <p className={`truncate text-sm font-semibold tabular-nums ${categoryText(p.color)}`}>
+                    {formatAmount(p.balance)}
+                  </p>
+                  <p className="truncate text-[0.62rem] leading-tight text-muted-foreground">
+                    reste · dépensé {formatAmount(p.totalSpent)}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-          <Link href="/bills" className="text-xs text-muted-foreground hover:underline">
-            Voir le détail
-          </Link>
         </CardContent>
       </Card>
 
@@ -167,11 +283,12 @@ export default async function DashboardPage() {
         <MoneyFlowCard
           incomeSources={incomeSources}
           incomeTotal={incomeTotal}
-          incomeByPocket={incomeByPocket}
+          byPayerPocket={byPayerPocket}
           pockets={pockets}
-          incomeCategoryId={categories.find((c) => c.type === "income")?.id}
+          profiles={profiles}
+          otherIncomeCategoryId={categories.find((c) => c.name === "Autres revenus")?.id}
         />
-        <AccountsCard pockets={pockets} />
+        <TransferInstructionsCard profiles={profiles} pockets={pockets} incomeSources={incomeSources} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
@@ -234,14 +351,47 @@ export default async function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Règles de répartition</CardTitle>
-            <Link href="/budgets" className="text-xs text-muted-foreground hover:underline">
-              Voir toutes
-            </Link>
-          </CardHeader>
-          <CardContent>
-            <AllocationRules categories={categories} pockets={pockets} />
+          <CardContent className="flex flex-col gap-3 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Wallet className="size-4" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">Charges fixes du foyer</p>
+                <p className="text-xl font-semibold tabular-nums">{formatAmount(totalFixedCharges)}</p>
+              </div>
+              <Link href="/bills" className="text-xs text-muted-foreground hover:underline">
+                Voir le détail
+              </Link>
+            </div>
+            {fixedChargesByPocket.size > 0 && (
+              <div className="flex flex-col gap-1 border-t pt-2">
+                {pockets
+                  .filter((p) => fixedChargesByPocket.has(p.id))
+                  .map((p) => (
+                    <div key={p.id} className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Charges fixes {p.name}</span>
+                      <span className="font-medium tabular-nums">
+                        {formatAmount(fixedChargesByPocket.get(p.id)!)}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
+            {manualBudgets.length > 0 && (
+              <div className="flex flex-col gap-1 border-t pt-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Dépenses fixes</span>
+                  <span className="font-medium tabular-nums">{formatAmount(totalFixedExpenses)}</span>
+                </div>
+                {manualBudgets.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between pl-3 text-xs">
+                    <span className="text-muted-foreground">{b.category?.name}</span>
+                    <span className="font-medium tabular-nums">{formatAmount(b.amount_limit)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

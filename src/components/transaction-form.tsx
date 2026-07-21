@@ -81,7 +81,7 @@ export function TransactionForm({
           paid_by: paidBy,
           pocket_id: isIncome ? null : pocketId || null,
         });
-        toast.success(isIncome ? "Revenu réparti dans les poches" : "Transaction ajoutée");
+        toast.success(isIncome ? "Revenu réparti dans les comptes" : "Transaction ajoutée");
         router.replace("/transactions");
         router.refresh();
       } catch (err) {
@@ -159,15 +159,15 @@ export function TransactionForm({
 
       {isIncome ? (
         <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-          Un revenu se répartit automatiquement dans toutes les poches, selon leurs pourcentages
+          Un revenu se répartit automatiquement dans tous les comptes, selon leurs pourcentages
           (réglables dans Réglages).
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          <Label>Poche</Label>
+          <Label>Compte</Label>
           <Select value={pocketId} onValueChange={(v) => { setPocketId(v ?? ""); setPocketTouched(true); }}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choisir une poche">
+              <SelectValue placeholder="Choisir un compte">
                 {(value: string) => pockets.find((p) => p.id === value)?.name}
               </SelectValue>
             </SelectTrigger>

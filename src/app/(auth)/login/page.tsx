@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoginForm } from "@/components/login-form";
 import { BrandMark } from "@/components/brand-mark";
@@ -17,8 +18,14 @@ export default function LoginPage() {
             <CardDescription>Connectez-vous pour accéder au compte commun.</CardDescription>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
           <LoginForm />
+          <p className="text-center text-sm text-muted-foreground">
+            Pas de compte ?{" "}
+            <Link href="/signup" className="font-medium text-foreground underline underline-offset-4">
+              Créer un foyer
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

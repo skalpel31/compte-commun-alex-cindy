@@ -1,40 +1,63 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { deleteBudget, upsertBudget } from "@/lib/actions";
+import { Switch } from "@/components/ui/switch";
+import { deleteBudget, upsertBudget, updateCategoryRollover, renameCategory, setBudgetAuto } from "@/lib/actions";
 import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
-import type { Category } from "@/lib/types";
+import { EditableText } from "@/components/editable-text";
+import type { Category, BillWithStatus } from "@/lib/types";
 
 export function BudgetRow({
   category,
   budgetId,
   limit,
+  baseLimit,
   spent,
+  available,
   auto,
+  bills = [],
 }: {
   category: Category;
   budgetId: string | null;
   limit: number | null;
+  baseLimit?: number | null;
   spent: number;
+  available?: number;
   auto: boolean;
+  bills?: BillWithStatus[];
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState(limit ? String(limit) : "");
+  const [amount, setAmount] = useState(baseLimit ? String(baseLimit) : "");
+  const [rollover, setRollover] = useState(category.budget_rollover);
+  const [autoState, setAutoState] = useState(auto);
   const [pending, startTransition] = useTransition();
 
-  const pct = limit ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
-  const severity = !limit ? "" : pct >= 100 ? "bg-critical" : pct >= 80 ? "bg-warning" : categoryBg(category.color);
+  // limit/available can legitimately be 0 (budget fully used) — never treat
+  // that as "no budget set", only `null`/`undefined` mean that.
+  const hasLimit = limit !== null && limit !== undefined;
+  const pct = hasLimit && limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : hasLimit ? 100 : 0;
+  const severity = !hasLimit ? "" : pct >= 100 ? "bg-critical" : pct >= 80 ? "bg-warning" : categoryBg(category.color);
 
   function handleSave() {
-    const numeric = parseFloat(amount.replace(",", "."));
-    if (!numeric || numeric <= 0) {
+    const trimmed = amount.trim();
+    const numeric = trimmed ? parseFloat(trimmed.replace(",", ".")) : 0;
+    if (Number.isNaN(numeric) || numeric < 0) {
       toast.error("Montant invalide");
+      return;
+    }
+    // 0 (or blank) means "no fixed amount" — switch to auto instead of
+    // blocking, it'll fill itself in once a bill lands in this category.
+    if (numeric === 0) {
+      handleAutoChange(true);
+      setOpen(false);
       return;
     }
     startTransition(async () => {
@@ -46,11 +69,41 @@ export function BudgetRow({
           user_id: null,
         });
         toast.success("Budget enregistré");
+        setAutoState(false);
         setOpen(false);
+        router.refresh();
       } catch (err) {
         toast.error("Échec de l'enregistrement", {
           description: err instanceof Error ? err.message : undefined,
         });
+      }
+    });
+  }
+
+  function handleRolloverChange(next: boolean) {
+    setRollover(next);
+    startTransition(async () => {
+      try {
+        await updateCategoryRollover(category.id, next);
+        router.refresh();
+      } catch (err) {
+        toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
+      }
+    });
+  }
+
+  function handleAutoChange(next: boolean) {
+    setAutoState(next);
+    startTransition(async () => {
+      try {
+        await setBudgetAuto(category.id, next);
+        toast.success(
+          next ? "Calcul automatique activé" : "Montant figé, ne suivra plus les factures"
+        );
+        router.refresh();
+      } catch (err) {
+        toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
+        setAutoState(!next);
       }
     });
   }
@@ -62,6 +115,7 @@ export function BudgetRow({
         await deleteBudget(budgetId);
         toast.success("Budget supprimé");
         setOpen(false);
+        router.refresh();
       } catch (err) {
         toast.error("Échec de la suppression", {
           description: err instanceof Error ? err.message : undefined,
@@ -80,17 +134,18 @@ export function BudgetRow({
         <div className="flex items-center gap-3">
           <CategoryIcon icon={category.icon} className={`size-4 shrink-0 ${categoryText(category.color)}`} />
           <span className="flex-1 text-sm font-medium">{category.name}</span>
-          {limit ? (
+          {hasLimit ? (
             <span className="text-xs text-muted-foreground">
               {formatAmount(spent)} / {formatAmount(limit)}
               {auto && <span className="ml-1 text-primary">· auto</span>}
+              {category.budget_rollover && <span className="ml-1 text-primary">· cumulé</span>}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground">Définir un budget</span>
           )}
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-          {limit && (
+          {hasLimit && (
             <div
               className={`h-full rounded-full transition-all ${severity}`}
               style={{ width: `${Math.max(4, pct)}%` }}
@@ -103,8 +158,13 @@ export function BudgetRow({
         <SheetContent side="bottom" className="mx-auto max-w-lg rounded-t-2xl">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <CategoryIcon icon={category.icon} className={`size-4 ${categoryText(category.color)}`} />
-              {category.name}
+              <CategoryIcon icon={category.icon} className={`size-4 shrink-0 ${categoryText(category.color)}`} />
+              <EditableText
+                value={category.name}
+                onSave={(next) => renameCategory(category.id, next)}
+                successMessage="Nom mis à jour"
+                ariaLabel="Renommer la catégorie"
+              />
             </SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-2 px-4">
@@ -117,13 +177,44 @@ export function BudgetRow({
               onChange={(e) => setAmount(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Déjà dépensé ce mois-ci : {formatAmount(spent)}
+              Déjà dépensé {rollover ? "depuis le début du cumul" : "ce mois-ci"} : {formatAmount(spent)}
             </p>
-            {auto && (
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={rollover} onCheckedChange={handleRolloverChange} disabled={pending} />
+              Ce qui n&apos;est pas dépensé se reporte au mois suivant
+            </label>
+            {rollover && available !== undefined && (
+              <p className="text-xs text-muted-foreground">
+                Disponible ce mois-ci (cumulé) : {formatAmount(available)}
+              </p>
+            )}
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={autoState} onCheckedChange={handleAutoChange} disabled={pending} />
+              Calculer automatiquement depuis les factures de cette catégorie
+            </label>
+            {autoState && (
               <p className="text-xs text-primary">
                 Calculé automatiquement depuis tes factures — l&apos;enregistrer ici fixera un
                 montant fixe à la place.
               </p>
+            )}
+            {bills.length > 0 && (
+              <div className="mt-2 flex flex-col gap-1.5 border-t pt-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Factures dans cette catégorie ({bills.length})
+                </p>
+                {bills.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between text-sm">
+                    <span>{b.name}</span>
+                    <span className="flex items-center gap-2 tabular-nums">
+                      {formatAmount(b.effectiveAmount)}
+                      {b.status === "paid" && (
+                        <span className="text-xs text-primary">payée</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
           <SheetFooter className="flex-row gap-2">

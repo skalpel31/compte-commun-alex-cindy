@@ -53,16 +53,26 @@ export async function GET(request: Request) {
   const month = currentMonth();
   const results: string[] = [];
 
-  const { data: profiles } = await supabase.from("profiles").select("id");
-  const userIds = (profiles ?? []).map((p) => p.id as string);
+  // The admin/service-role client bypasses RLS entirely, so every query
+  // below must explicitly filter by household — otherwise one household's
+  // alert would page every signed-up household's push subscriptions.
+  const { data: profiles } = await supabase.from("profiles").select("user_id, household_id");
+  const userIdsByHousehold = new Map<string, string[]>();
+  for (const p of profiles ?? []) {
+    if (!p.user_id) continue; // memberless member — no login, nothing to push to
+    const list = userIdsByHousehold.get(p.household_id) ?? [];
+    list.push(p.user_id as string);
+    userIdsByHousehold.set(p.household_id, list);
+  }
 
   // --- Budgets: notify at 80% and 100% of the monthly limit ---
   const { data: budgets } = await supabase
     .from("budgets")
-    .select("id, category_id, amount_limit, category:categories(name)")
+    .select("id, category_id, household_id, amount_limit, category:categories(name)")
     .eq("month", month);
 
   for (const budget of budgets ?? []) {
+    const userIds = userIdsByHousehold.get(budget.household_id) ?? [];
     const { data: txs } = await supabase
       .from("transactions")
       .select("amount")
@@ -92,7 +102,7 @@ export async function GET(request: Request) {
     }
     await supabase
       .from("budget_alerts_sent")
-      .insert({ category_id: budget.category_id, month, threshold });
+      .insert({ category_id: budget.category_id, month, threshold, household_id: budget.household_id });
     results.push(`budget:${categoryName}:${threshold}`);
   }
 
@@ -105,6 +115,7 @@ export async function GET(request: Request) {
   // --- Autopay bills: mark paid automatically once the due day has passed,
   // recording the real transaction just like a manual "marquer payée" would.
   for (const bill of bills ?? []) {
+    const userIds = userIdsByHousehold.get(bill.household_id) ?? [];
     if (!bill.autopay || !bill.default_payer) continue;
     if (todayDay < bill.due_day) continue;
 
@@ -144,6 +155,7 @@ export async function GET(request: Request) {
         pocket_id,
         split_type: "shared",
         split_ratio: {},
+        household_id: bill.household_id,
       })
       .select("id")
       .single();
@@ -161,6 +173,7 @@ export async function GET(request: Request) {
         paid_by: paidBy,
         transaction_id: transaction.id,
         auto: true,
+        household_id: bill.household_id,
       },
       { onConflict: "bill_id,month" }
     );
@@ -178,6 +191,7 @@ export async function GET(request: Request) {
   }
 
   for (const bill of bills ?? []) {
+    const userIds = userIdsByHousehold.get(bill.household_id) ?? [];
     const { data: payment } = await supabase
       .from("bill_payments")
       .select("paid_at")
@@ -212,7 +226,7 @@ export async function GET(request: Request) {
     for (const userId of userIds) {
       await sendPush(supabase, userId, title, body, "/bills");
     }
-    await supabase.from("bill_alerts_sent").insert({ bill_id: bill.id, month, kind });
+    await supabase.from("bill_alerts_sent").insert({ bill_id: bill.id, month, kind, household_id: bill.household_id });
     results.push(`bill:${bill.name}:${kind}`);
   }
 

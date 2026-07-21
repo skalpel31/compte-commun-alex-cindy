@@ -1,41 +1,105 @@
+import Link from "next/link";
+import { PiggyBank } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkline } from "@/components/sparkline";
-import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
-import { getGoals, getPocketBalances } from "@/lib/data";
+import { NewPocketSheet } from "@/components/pocket-manager";
+import { DeletePocketButton } from "@/components/delete-pocket-button";
+import { CategoryIcon, categoryBg, categoryText, nextPocketColor } from "@/lib/category-style";
+import { getGoals, getPocketBalances, getProfiles, getSavingsBillTotals } from "@/lib/data";
 import { formatAmount } from "@/lib/format";
 
 export default async function EpargnePage() {
-  const [pockets, goals] = await Promise.all([getPocketBalances(), getGoals()]);
-  const savings = pockets.find((p) => p.name.toLowerCase().includes("épargne")) ?? pockets[0];
-  const linkedGoals = goals.filter((g) => g.pocket_id === savings?.id);
+  const [pockets, goals, profiles, savingsBills] = await Promise.all([
+    getPocketBalances(),
+    getGoals(),
+    getProfiles(),
+    getSavingsBillTotals(),
+  ]);
+  const savingsPockets = pockets.filter((p) => p.is_savings);
+  const linkedGoals = goals.filter((g) => savingsPockets.some((p) => p.id === g.pocket_id));
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Épargne</h1>
         <p className="text-sm text-muted-foreground">
-          Ce que vous mettez de côté, et pour quoi.
+          Ce que vous mettez de côté, compte par compte — chacun a son propre total, ils ne
+          s&apos;additionnent pas entre eux.
         </p>
       </div>
 
-      {savings && (
-        <Card className="glass">
-          <CardContent className="flex flex-col gap-3 pt-4">
-            <div className="flex items-center gap-3">
-              <div className={`flex size-10 items-center justify-center rounded-full text-white ${categoryBg(savings.color)}`}>
-                <CategoryIcon icon={savings.icon} className="size-5" />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Vos comptes épargne</CardTitle>
+          <NewPocketSheet nextColor={nextPocketColor(pockets)} profiles={profiles} isSavings />
+        </CardHeader>
+        <CardContent className="divide-y">
+          {savingsPockets.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Aucun compte épargne pour l&apos;instant — crée-en un ci-dessus (Épargne commune,
+              Livret Mila...).
+            </p>
+          ) : (
+            savingsPockets.map((p) => (
+              <div key={p.id} className="flex items-center gap-3 py-3">
+                <Link href={`/epargne/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                  <div
+                    className={`flex size-9 shrink-0 items-center justify-center rounded-full text-white ${categoryBg(p.color)}`}
+                  >
+                    <CategoryIcon icon={p.icon} className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{p.name}</p>
+                    <p className={`text-sm font-semibold tabular-nums ${categoryText(p.color)}`}>
+                      {formatAmount(p.balance)}
+                    </p>
+                  </div>
+                </Link>
+                <DeletePocketButton pocketId={p.id} />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{savings.name}</p>
-                <p className={`text-2xl font-semibold tabular-nums ${categoryText(savings.color)}`}>
-                  {formatAmount(savings.balance)}
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Vos versements réguliers</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Livret A, PEL... des factures récurrentes vers un compte externe. Chacun a son propre
+            total versé à ce jour.
+          </p>
+        </CardHeader>
+        <CardContent className="divide-y">
+          {savingsBills.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Aucun versement régulier pour l&apos;instant — ajoute une facture dans la catégorie
+              Épargne (ex : Livret A Mila).
+            </p>
+          ) : (
+            savingsBills.map((b) => (
+              <Link
+                key={b.billId}
+                href={`/epargne/bill/${b.billId}`}
+                className="flex items-center gap-3 py-3"
+              >
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <PiggyBank className="size-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{b.billName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatAmount(b.monthlyAmount)}/mois · {b.paymentsCount} versement
+                    {b.paymentsCount > 1 ? "s" : ""}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-semibold tabular-nums">
+                  {formatAmount(b.totalPaid)}
                 </p>
-              </div>
-            </div>
-            <Sparkline values={savings.sparkline} color={savings.color} />
-          </CardContent>
-        </Card>
-      )}
+              </Link>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

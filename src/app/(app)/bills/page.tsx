@@ -1,16 +1,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BillRow } from "@/components/bill-row";
 import { NewBillSheet } from "@/components/bill-sheet";
-import { getBills, getCategories, getCompletedBills, getPockets, getProfiles } from "@/lib/data";
+import { ResyncBillsButton } from "@/components/resync-bills-button";
+import {
+  getBills,
+  getCategories,
+  getCompletedBills,
+  getCurrentHouseholdId,
+  getPockets,
+  getProfiles,
+} from "@/lib/data";
 import { formatAmount } from "@/lib/format";
 
 export default async function BillsPage() {
-  const [bills, completedBills, categories, profiles, pockets] = await Promise.all([
+  const [bills, completedBills, categories, profiles, pockets, householdId] = await Promise.all([
     getBills(),
     getCompletedBills(),
     getCategories(),
     getProfiles(),
     getPockets(),
+    getCurrentHouseholdId(),
   ]);
   const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.effectiveAmount, 0);
   const overdueCount = bills.filter((b) => b.status === "overdue").length;
@@ -25,7 +34,10 @@ export default async function BillsPage() {
             Vos charges récurrentes, avec rappel avant échéance.
           </p>
         </div>
-        <NewBillSheet categories={categories} profiles={profiles} pockets={pockets} />
+        <div className="flex items-center gap-2">
+          <ResyncBillsButton />
+          <NewBillSheet categories={categories} profiles={profiles} pockets={pockets} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -66,7 +78,7 @@ export default async function BillsPage() {
             </p>
           ) : (
             bills.map((b) => (
-              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} />
+              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} householdId={householdId} />
             ))
           )}
         </CardContent>
@@ -79,7 +91,7 @@ export default async function BillsPage() {
           </CardHeader>
           <CardContent className="divide-y opacity-70">
             {completedBills.map((b) => (
-              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} />
+              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} householdId={householdId} />
             ))}
           </CardContent>
         </Card>
