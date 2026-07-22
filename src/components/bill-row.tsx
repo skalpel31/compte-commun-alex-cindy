@@ -12,7 +12,7 @@ import { CategoryIcon } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
 import { JOINT_PAYER, payerLabel } from "@/lib/payer";
 import { ReceiptUpload } from "@/components/receipt-upload";
-import type { BillWithStatus, Category, Pocket, Profile } from "@/lib/types";
+import type { BillWithStatus, Budget, Category, Pocket, Profile } from "@/lib/types";
 
 const STATUS_META = {
   paid: { label: "Payée", className: "text-good", Icon: Check },
@@ -26,12 +26,14 @@ export function BillRow({
   profiles,
   categories,
   pockets,
+  budgets,
   householdId,
 }: {
   bill: BillWithStatus;
   profiles: Profile[];
   categories: Category[];
   pockets: Pocket[];
+  budgets?: Budget[];
   householdId: string;
 }) {
   const router = useRouter();
@@ -184,6 +186,7 @@ export function BillRow({
         categories={categories}
         profiles={profiles}
         pockets={pockets}
+        budgets={budgets}
         open={editOpen}
         onOpenChange={setEditOpen}
       />

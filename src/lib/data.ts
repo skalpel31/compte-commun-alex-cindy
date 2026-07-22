@@ -248,6 +248,39 @@ export async function getRollingBudgetAvailable(
   return result;
 }
 
+export type PlannedSpend = {
+  fixedCharges: number;
+  discretionaryBudgets: Budget[];
+  discretionaryTotal: number;
+  /** Safe to display or compare against income — never double-counts a
+   * category that has both a bill and a leftover manual budget. */
+  total: number;
+};
+
+/**
+ * A category can end up with both an active bill AND a manually-set budget
+ * (someone types a number instead of leaving it in "auto") — summing "toutes
+ * les factures" and "tous les budgets manuels" separately then adds that
+ * category's spend twice. This is the one place that combines them, so any
+ * category with a bill is always represented by its bill only; every caller
+ * (dashboard, an "am I over budget" check) gets a total that can't drift back
+ * into double-counting even if that overlap recurs on new categories later.
+ */
+export function computePlannedSpend(bills: BillWithStatus[], budgets: Budget[]): PlannedSpend {
+  const fixedCharges = bills.reduce((s, b) => s + b.effectiveAmount, 0);
+  const categoriesWithBills = new Set(bills.map((b) => b.category_id).filter((id): id is string => !!id));
+  const discretionaryBudgets = budgets.filter(
+    (b) => !b.auto && b.category?.type === "expense" && !categoriesWithBills.has(b.category_id)
+  );
+  const discretionaryTotal = discretionaryBudgets.reduce((s, b) => s + b.amount_limit, 0);
+  return {
+    fixedCharges,
+    discretionaryBudgets,
+    discretionaryTotal,
+    total: fixedCharges + discretionaryTotal,
+  };
+}
+
 export async function getGoals(): Promise<Goal[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("goals").select("*").order("created_at");

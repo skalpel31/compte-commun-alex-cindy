@@ -18,21 +18,23 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { createBill, markBillPaid, updateBill, type BillInput } from "@/lib/actions";
 import { cn } from "@/lib/utils";
-import { localDateString } from "@/lib/format";
+import { formatAmount, localDateString } from "@/lib/format";
 import { JOINT_PAYER } from "@/lib/payer";
-import type { Bill, Category, Pocket, Profile } from "@/lib/types";
+import type { Bill, Budget, Category, Pocket, Profile } from "@/lib/types";
 
 function BillForm({
   bill,
   categories,
   profiles,
   pockets,
+  budgets = [],
   onDone,
 }: {
   bill?: Bill;
   categories: Category[];
   profiles: Profile[];
   pockets: Pocket[];
+  budgets?: Budget[];
   onDone: () => void;
 }) {
   const [name, setName] = useState(bill?.name ?? "");
@@ -53,6 +55,9 @@ function BillForm({
   const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+
+  const overlappingBudget =
+    categoryId !== "none" ? budgets.find((b) => b.category_id === categoryId && !b.auto) : undefined;
 
   function handleCategoryChange(value: string) {
     setCategoryId(value);
@@ -200,6 +205,13 @@ function BillForm({
             </Select>
           </div>
         </div>
+        {overlappingBudget && (
+          <p className="rounded-lg border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+            Cette catégorie a déjà un budget fixé à la main ({formatAmount(overlappingBudget.amount_limit)})
+            dans Budgets & Enveloppes. Avec cette facture en plus, ce montant risque d&apos;être compté en
+            double — pense à repasser ce budget en mode auto.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           <Label>Payeur habituel</Label>
           <div className="grid grid-cols-3 gap-2">
@@ -335,10 +347,12 @@ export function NewBillSheet({
   categories,
   profiles,
   pockets,
+  budgets,
 }: {
   categories: Category[];
   profiles: Profile[];
   pockets: Pocket[];
+  budgets?: Budget[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -357,6 +371,7 @@ export function NewBillSheet({
             categories={categories}
             profiles={profiles}
             pockets={pockets}
+            budgets={budgets}
             onDone={() => setOpen(false)}
           />
         </SheetContent>
@@ -370,6 +385,7 @@ export function EditBillSheet({
   categories,
   profiles,
   pockets,
+  budgets,
   open,
   onOpenChange,
 }: {
@@ -377,6 +393,7 @@ export function EditBillSheet({
   categories: Category[];
   profiles: Profile[];
   pockets: Pocket[];
+  budgets?: Budget[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -391,6 +408,7 @@ export function EditBillSheet({
           categories={categories}
           profiles={profiles}
           pockets={pockets}
+          budgets={budgets}
           onDone={() => onOpenChange(false)}
         />
       </SheetContent>

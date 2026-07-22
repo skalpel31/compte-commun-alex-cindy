@@ -19,6 +19,7 @@ import { RecentExpensesTable } from "@/components/recent-expenses-table";
 import { SmartAlertCard } from "@/components/smart-alert-card";
 import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
 import {
+  computePlannedSpend,
   getBills,
   getBudgets,
   getCategories,
@@ -66,8 +67,6 @@ export default async function DashboardPage() {
   const lowBalanceAlert =
     jointPocket && jointProjected !== null && jointProjected < 500 && jointUpcoming > 0;
 
-  const totalFixedCharges = bills.reduce((s, b) => s + b.effectiveAmount, 0);
-
   // Same pocket-resolution rule as when a bill actually gets paid (its own
   // pocket_id, falling back to its category's default) — so "who owes how
   // much fixed" lines up with where the money will actually come from.
@@ -78,12 +77,10 @@ export default async function DashboardPage() {
     fixedChargesByPocket.set(pocketId, (fixedChargesByPocket.get(pocketId) ?? 0) + b.effectiveAmount);
   }
 
-  // Budgets the user set by hand for recurring discretionary spending
-  // (Courses, essences, Cigarettes...) as opposed to "auto" budgets, which
-  // just mirror what's already counted under Charges fixes du foyer via
-  // bills — summing those here too would double-count the same money.
-  const manualBudgets = budgets.filter((b) => !b.auto && b.category?.type === "expense");
-  const totalFixedExpenses = manualBudgets.reduce((s, b) => s + b.amount_limit, 0);
+  const planned = computePlannedSpend(bills, budgets);
+  const totalFixedCharges = planned.fixedCharges;
+  const manualBudgets = planned.discretionaryBudgets;
+  const totalFixedExpenses = planned.discretionaryTotal;
 
   const negativePockets = pockets.filter((p) => p.balance < 0);
   const overdueBills = pendingBills.filter((b) => b.status === "overdue");
@@ -392,6 +389,10 @@ export default async function DashboardPage() {
                 ))}
               </div>
             )}
+            <div className="flex items-center justify-between border-t pt-2 text-sm">
+              <span className="font-medium">Total prévu ce mois</span>
+              <span className="font-semibold tabular-nums">{formatAmount(planned.total)}</span>
+            </div>
           </CardContent>
         </Card>
 

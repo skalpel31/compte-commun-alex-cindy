@@ -4,6 +4,7 @@ import { NewBillSheet } from "@/components/bill-sheet";
 import { ResyncBillsButton } from "@/components/resync-bills-button";
 import {
   getBills,
+  getBudgets,
   getCategories,
   getCompletedBills,
   getCurrentHouseholdId,
@@ -13,13 +14,14 @@ import {
 import { formatAmount } from "@/lib/format";
 
 export default async function BillsPage() {
-  const [bills, completedBills, categories, profiles, pockets, householdId] = await Promise.all([
+  const [bills, completedBills, categories, profiles, pockets, householdId, budgets] = await Promise.all([
     getBills(),
     getCompletedBills(),
     getCategories(),
     getProfiles(),
     getPockets(),
     getCurrentHouseholdId(),
+    getBudgets(),
   ]);
   const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.effectiveAmount, 0);
   const overdueCount = bills.filter((b) => b.status === "overdue").length;
@@ -36,7 +38,7 @@ export default async function BillsPage() {
         </div>
         <div className="flex items-center gap-2">
           <ResyncBillsButton />
-          <NewBillSheet categories={categories} profiles={profiles} pockets={pockets} />
+          <NewBillSheet categories={categories} profiles={profiles} pockets={pockets} budgets={budgets} />
         </div>
       </div>
 
@@ -78,7 +80,7 @@ export default async function BillsPage() {
             </p>
           ) : (
             bills.map((b) => (
-              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} householdId={householdId} />
+              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} budgets={budgets} householdId={householdId} />
             ))
           )}
         </CardContent>
@@ -91,7 +93,7 @@ export default async function BillsPage() {
           </CardHeader>
           <CardContent className="divide-y opacity-70">
             {completedBills.map((b) => (
-              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} householdId={householdId} />
+              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} budgets={budgets} householdId={householdId} />
             ))}
           </CardContent>
         </Card>
