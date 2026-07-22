@@ -13,6 +13,7 @@ import {
   HeartPulse,
   UtensilsCrossed,
   ShoppingCart,
+  Footprints,
   Settings,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ export const navItems = [
   { href: "/sante", label: "Santé", icon: HeartPulse },
   { href: "/nutrition", label: "Nutrition", icon: UtensilsCrossed },
   { href: "/courses", label: "Courses", icon: ShoppingCart },
+  { href: "/course-a-pied", label: "Course à pied", icon: Footprints },
   { href: "/simulations", label: "Simulations", icon: LineChart },
   { href: "/conseiller-ia", label: "Conseiller IA", icon: Sparkles },
   { href: "/alertes", label: "Alertes", icon: Bell },

@@ -160,6 +160,20 @@ export type ShoppingListItem = {
   source: "generated" | "manual";
 };
 
+export type RunPoint = { lat: number; lng: number; t: number };
+
+export type Run = {
+  id: string;
+  profile_id: string;
+  started_at: string;
+  ended_at: string;
+  distance_m: number;
+  duration_s: number;
+  route: RunPoint[];
+  created_at: string;
+  profile: Profile | null;
+};
+
 export type BillWithStatus = Bill & {
   status: "paid" | "overdue" | "upcoming" | "later";
   dueDate: string;

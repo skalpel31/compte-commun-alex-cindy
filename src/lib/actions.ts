@@ -7,7 +7,7 @@ import { currentMonth, localDateString } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
 import { JOINT_PAYER } from "@/lib/payer";
 import { computeIncomeSplit } from "@/lib/income-split";
-import type { MealType, Recipe, RecipeIngredient } from "@/lib/types";
+import type { MealType, Recipe, RecipeIngredient, RunPoint } from "@/lib/types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -832,6 +832,35 @@ export async function deleteWeightLog(id: string) {
   const { error } = await supabase.from("weight_logs").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/sante");
+}
+
+export type SaveRunInput = {
+  profileId: string;
+  startedAt: string;
+  endedAt: string;
+  distanceM: number;
+  durationS: number;
+  route: RunPoint[];
+};
+
+export async function saveRun(input: SaveRunInput): Promise<string> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("runs")
+    .insert({
+      household_id: await getCurrentHouseholdId(),
+      profile_id: input.profileId,
+      started_at: input.startedAt,
+      ended_at: input.endedAt,
+      distance_m: input.distanceM,
+      duration_s: input.durationS,
+      route: input.route,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  revalidatePath("/course-a-pied");
+  return data.id;
 }
 
 export async function upsertMealSlot(

@@ -16,6 +16,7 @@ import type {
   Pocket,
   Profile,
   Recipe,
+  Run,
   ShoppingListItem,
   Transaction,
   WeightLog,
@@ -402,6 +403,21 @@ export async function getShoppingList(weekStart: string): Promise<ShoppingListIt
     .eq("week_start", weekStart)
     .order("created_at");
   return (data as ShoppingListItem[] | null) ?? [];
+}
+
+export async function getRuns(): Promise<Run[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("runs")
+    .select("*, profile:profiles(*)")
+    .order("started_at", { ascending: false });
+  return (data as Run[] | null) ?? [];
+}
+
+export async function getRun(id: string): Promise<Run | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("runs").select("*, profile:profiles(*)").eq("id", id).maybeSingle();
+  return data as Run | null;
 }
 
 export async function getGoals(): Promise<Goal[]> {
