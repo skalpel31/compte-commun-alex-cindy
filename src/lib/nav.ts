@@ -11,6 +11,8 @@ import {
   Sparkles,
   Bell,
   HeartPulse,
+  UtensilsCrossed,
+  ShoppingCart,
   Settings,
 } from "lucide-react";
 
@@ -24,6 +26,8 @@ export const navItems = [
   { href: "/objectifs", label: "Objectifs", icon: Target },
   { href: "/epargne", label: "Épargne", icon: Landmark },
   { href: "/sante", label: "Santé", icon: HeartPulse },
+  { href: "/nutrition", label: "Nutrition", icon: UtensilsCrossed },
+  { href: "/courses", label: "Courses", icon: ShoppingCart },
   { href: "/simulations", label: "Simulations", icon: LineChart },
   { href: "/conseiller-ia", label: "Conseiller IA", icon: Sparkles },
   { href: "/alertes", label: "Alertes", icon: Bell },

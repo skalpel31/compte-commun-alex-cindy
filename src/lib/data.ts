@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { currentMonth, localDateString, localMonthString } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
+import { MEAL_TYPES } from "@/lib/nutrition";
 import type {
   Bill,
   BillWithStatus,
@@ -9,8 +10,13 @@ import type {
   Category,
   Goal,
   HealthProfile,
+  MealPlanEntry,
+  MealSlot,
+  MealType,
   Pocket,
   Profile,
+  Recipe,
+  ShoppingListItem,
   Transaction,
   WeightLog,
 } from "@/lib/types";
@@ -72,6 +78,12 @@ export async function getVisibleHealthProfiles(): Promise<Profile[]> {
   } = await supabase.auth.getUser();
   const profiles = await getProfiles();
   return profiles.filter((p) => p.user_id === user?.id || p.user_id === null);
+}
+
+export async function getAllHealthProfiles(): Promise<HealthProfile[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("health_profiles").select("*");
+  return (data as HealthProfile[] | null) ?? [];
 }
 
 export async function getHealthProfile(profileId: string): Promise<HealthProfile | null> {
@@ -322,6 +334,74 @@ export function computePlannedSpend(bills: BillWithStatus[], budgets: Budget[]):
     discretionaryTotal,
     total: fixedCharges + discretionaryTotal,
   };
+}
+
+export async function getRecipes(): Promise<Recipe[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("recipes").select("*").order("created_at", { ascending: false });
+  return (data as Recipe[] | null) ?? [];
+}
+
+export async function getRecipe(id: string): Promise<Recipe | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("recipes").select("*").eq("id", id).maybeSingle();
+  return data as Recipe | null;
+}
+
+/**
+ * The weekly meal-slot template, one row per (day, meal type). Any
+ * combination not yet customized in the DB defaults to "everyone in the
+ * household eats this", synthesized here rather than seeded by a migration
+ * — so a brand new household gets a sensible default with zero setup, and
+ * the default follows the household's actual member list even as it grows.
+ */
+export async function getMealSlots(): Promise<MealSlot[]> {
+  const supabase = await createClient();
+  const [{ data: slots }, profiles] = await Promise.all([
+    supabase.from("meal_slots").select("*"),
+    getProfiles(),
+  ]);
+  const allProfileIds = profiles.map((p) => p.id);
+  const byKey = new Map((slots ?? []).map((s) => [`${s.day_of_week}:${s.meal_type}`, s as MealSlot]));
+
+  const result: MealSlot[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (const mealType of MEAL_TYPES) {
+      const key = `${day}:${mealType}`;
+      result.push(
+        byKey.get(key) ?? {
+          id: `default-${key}`,
+          day_of_week: day,
+          meal_type: mealType as MealType,
+          // Only dinner defaults to "everyone, every day" — the one meal
+          // virtually every household actually shares daily. Every other
+          // slot defaults to nobody until explicitly configured, so a fresh
+          // household starts with 7 slots to fill instead of 28.
+          participant_profile_ids: mealType === "diner" ? allProfileIds : [],
+        }
+      );
+    }
+  }
+  return result;
+}
+
+export async function getMealPlanEntries(weekStart: string): Promise<MealPlanEntry[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("meal_plan_entries")
+    .select("*, recipe:recipes(*)")
+    .eq("week_start", weekStart);
+  return (data as MealPlanEntry[] | null) ?? [];
+}
+
+export async function getShoppingList(weekStart: string): Promise<ShoppingListItem[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("shopping_list_items")
+    .select("*")
+    .eq("week_start", weekStart)
+    .order("created_at");
+  return (data as ShoppingListItem[] | null) ?? [];
 }
 
 export async function getGoals(): Promise<Goal[]> {

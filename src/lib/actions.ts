@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentHouseholdId } from "@/lib/data";
+import { getCurrentHouseholdId, getMealPlanEntries, getMealSlots, getProfiles } from "@/lib/data";
 import { currentMonth, localDateString } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
 import { JOINT_PAYER } from "@/lib/payer";
 import { computeIncomeSplit } from "@/lib/income-split";
+import type { MealType, Recipe, RecipeIngredient } from "@/lib/types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -831,6 +832,287 @@ export async function deleteWeightLog(id: string) {
   const { error } = await supabase.from("weight_logs").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/sante");
+}
+
+export async function upsertMealSlot(
+  dayOfWeek: number,
+  mealType: MealType,
+  participantProfileIds: string[]
+) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("meal_slots").upsert(
+    {
+      household_id: await getCurrentHouseholdId(),
+      day_of_week: dayOfWeek,
+      meal_type: mealType,
+      participant_profile_ids: participantProfileIds,
+    },
+    { onConflict: "household_id,day_of_week,meal_type" }
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath("/nutrition");
+  revalidatePath("/settings");
+}
+
+export async function assignRecipeToSlot(
+  weekStart: string,
+  dayOfWeek: number,
+  mealType: MealType,
+  recipeId: string | null,
+  participantProfileIds: string[]
+) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("meal_plan_entries").upsert(
+    {
+      household_id: await getCurrentHouseholdId(),
+      week_start: weekStart,
+      day_of_week: dayOfWeek,
+      meal_type: mealType,
+      recipe_id: recipeId,
+      participant_profile_ids: participantProfileIds,
+    },
+    { onConflict: "household_id,week_start,day_of_week,meal_type" }
+  );
+  if (error) throw new Error(error.message);
+  revalidatePath("/nutrition");
+}
+
+export type RecipeInput = {
+  name: string;
+  description?: string | null;
+  meal_types: MealType[];
+  servings: number;
+  ingredients: RecipeIngredient[];
+  instructions?: string | null;
+};
+
+export async function updateRecipe(id: string, input: RecipeInput) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("recipes").update(input).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/nutrition");
+}
+
+export async function deleteRecipe(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("recipes").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/nutrition");
+}
+
+/**
+ * Generates a full week of recipes + meal assignments via the Anthropic API,
+ * covering every (day, meal type) slot currently configured in meal_slots
+ * (who eats what, per the household's own template) — replaces whatever
+ * was previously planned for this week.
+ */
+export async function generateWeeklyMenu(weekStart: string, preferences: string) {
+  const supabase = await createClient();
+  const household_id = await getCurrentHouseholdId();
+
+  const [slots, profiles, healthProfiles] = await Promise.all([
+    getMealSlots(),
+    getProfiles(),
+    (async () => {
+      const { data } = await supabase.from("health_profiles").select("*");
+      return (data ?? []) as { profile_id: string; goal_type: string | null; daily_calorie_target: number | null }[];
+    })(),
+  ]);
+
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+  const healthByProfileId = new Map(healthProfiles.map((h) => [h.profile_id, h]));
+
+  const householdSummary = profiles
+    .map((p) => {
+      const h = healthByProfileId.get(p.id);
+      const goal = h?.goal_type ? `objectif: ${h.goal_type}` : "pas d'objectif renseigné";
+      const cal = h?.daily_calorie_target ? `${h.daily_calorie_target} kcal/jour cible` : "pas de cible calorique";
+      return `- ${p.display_name} (${goal}, ${cal})`;
+    })
+    .join("\n");
+
+  const slotsSummary = slots
+    .map((s) => {
+      const names = s.participant_profile_ids.map((id) => profileById.get(id)?.display_name).filter(Boolean);
+      return `- Jour ${s.day_of_week} (0=lundi), ${s.meal_type}: ${names.length ? names.join(", ") : "personne"}`;
+    })
+    .filter((line) => !line.endsWith(": personne"))
+    .join("\n");
+
+  const prompt = `Tu es un assistant qui planifie les repas d'un foyer pour une semaine.
+
+Composition du foyer et objectifs nutritionnels :
+${householdSummary}
+
+Créneaux de repas à remplir cette semaine (jour de la semaine 0=lundi à 6=dimanche, qui mange) :
+${slotsSummary}
+
+Envies/contraintes du foyer pour cette semaine : ${preferences || "aucune, propose des repas équilibrés et variés"}
+
+Génère UNE recette par créneau ci-dessus (des recettes peuvent être réutilisées sur plusieurs créneaux similaires si ça a du sens, ex. le même petit-déjeuner plusieurs jours). Pour chaque ingrédient, donne une estimation réaliste des calories/macros pour 100g.
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, aucun bloc markdown), au format exact suivant :
+{
+  "recipes": [
+    {
+      "name": string,
+      "description": string,
+      "meal_types": string[] (parmi "petit_dejeuner","dejeuner","gouter","diner"),
+      "servings": number,
+      "ingredients": [{ "name": string, "quantity_g": number, "kcal_per_100g": number, "protein_per_100g": number, "carbs_per_100g": number, "fat_per_100g": number }],
+      "instructions": string
+    }
+  ],
+  "assignments": [
+    { "day_of_week": number, "meal_type": string, "recipe_index": number }
+  ]
+}`;
+
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 16000,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const textBlock = message.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") throw new Error("Réponse IA invalide");
+
+  let parsed: {
+    recipes: RecipeInput[];
+    assignments: { day_of_week: number; meal_type: MealType; recipe_index: number }[];
+  };
+  try {
+    const raw = textBlock.text.trim();
+    // The model usually complies with "JSON only", but sometimes wraps it in
+    // a fenced block or adds a stray sentence — extract the outermost
+    // {...} instead of assuming the string is already pure JSON.
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end < start) throw new Error("no JSON object found");
+    parsed = JSON.parse(raw.slice(start, end + 1));
+  } catch (err) {
+    console.error("generateWeeklyMenu: failed to parse AI response", textBlock.text.slice(0, 2000), err);
+    throw new Error(
+      message.stop_reason === "max_tokens"
+        ? "La réponse de l'IA a été coupée (trop de créneaux à remplir d'un coup) — réduis le nombre de repas configurés pour cette semaine."
+        : "La réponse de l'IA n'est pas un JSON valide"
+    );
+  }
+
+  const insertedRecipes = await supabase
+    .from("recipes")
+    .insert(
+      parsed.recipes.map((r) => ({
+        household_id,
+        name: r.name,
+        description: r.description ?? null,
+        meal_types: r.meal_types,
+        servings: r.servings,
+        ingredients: r.ingredients,
+        instructions: r.instructions ?? null,
+        generated_by_ai: true,
+      }))
+    )
+    .select("id");
+  if (insertedRecipes.error) throw new Error(insertedRecipes.error.message);
+  const recipeIds = insertedRecipes.data.map((r) => r.id);
+
+  const entries = parsed.assignments
+    .filter((a) => recipeIds[a.recipe_index])
+    .map((a) => {
+      const slot = slots.find((s) => s.day_of_week === a.day_of_week && s.meal_type === a.meal_type);
+      return {
+        household_id,
+        week_start: weekStart,
+        day_of_week: a.day_of_week,
+        meal_type: a.meal_type,
+        recipe_id: recipeIds[a.recipe_index],
+        participant_profile_ids: slot?.participant_profile_ids ?? [],
+      };
+    });
+
+  if (entries.length > 0) {
+    const { error } = await supabase
+      .from("meal_plan_entries")
+      .upsert(entries, { onConflict: "household_id,week_start,day_of_week,meal_type" });
+    if (error) throw new Error(error.message);
+  }
+
+  revalidatePath("/nutrition");
+  revalidatePath("/courses");
+}
+
+function mergeShoppingItems(
+  entries: { recipe: Recipe | null; participant_profile_ids: string[] }[]
+): { name: string; quantity: number; unit: string }[] {
+  const totals = new Map<string, number>();
+  for (const entry of entries) {
+    if (!entry.recipe) continue;
+    const peopleCount = Math.max(1, entry.participant_profile_ids.length);
+    const scale = peopleCount / Math.max(1, entry.recipe.servings);
+    for (const ing of entry.recipe.ingredients) {
+      const key = ing.name.trim().toLowerCase();
+      totals.set(key, (totals.get(key) ?? 0) + ing.quantity_g * scale);
+    }
+  }
+  return Array.from(totals, ([name, quantity]) => ({ name, quantity: Math.round(quantity), unit: "g" }));
+}
+
+/**
+ * Rebuilds the "generated" portion of the shopping list from this week's
+ * meal plan — sums every recipe's ingredients, scaled by how many people
+ * are actually eating each meal. Manually-added items are left untouched.
+ */
+export async function generateShoppingList(weekStart: string) {
+  const supabase = await createClient();
+  const household_id = await getCurrentHouseholdId();
+  const entries = await getMealPlanEntries(weekStart);
+
+  const { error: deleteError } = await supabase
+    .from("shopping_list_items")
+    .delete()
+    .eq("household_id", household_id)
+    .eq("week_start", weekStart)
+    .eq("source", "generated");
+  if (deleteError) throw new Error(deleteError.message);
+
+  const merged = mergeShoppingItems(entries);
+  if (merged.length > 0) {
+    const { error } = await supabase.from("shopping_list_items").insert(
+      merged.map((m) => ({ household_id, week_start: weekStart, ...m, source: "generated" }))
+    );
+    if (error) throw new Error(error.message);
+  }
+  revalidatePath("/courses");
+}
+
+export async function addShoppingListItem(weekStart: string, name: string, quantity?: number, unit?: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("shopping_list_items").insert({
+    household_id: await getCurrentHouseholdId(),
+    week_start: weekStart,
+    name: name.trim(),
+    quantity: quantity ?? null,
+    unit: unit ?? null,
+    source: "manual",
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/courses");
+}
+
+export async function toggleShoppingListItem(id: string, checked: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("shopping_list_items").update({ checked }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/courses");
+}
+
+export async function deleteShoppingListItem(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("shopping_list_items").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/courses");
 }
 
 export async function updatePocketAllocation(id: string, allocation_pct: number) {

@@ -110,6 +110,56 @@ export type WeightLog = {
   created_at: string;
 };
 
+export type MealType = "petit_dejeuner" | "dejeuner" | "gouter" | "diner";
+
+export type RecipeIngredient = {
+  name: string;
+  quantity_g: number;
+  kcal_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fat_per_100g: number;
+};
+
+export type Recipe = {
+  id: string;
+  name: string;
+  description: string | null;
+  meal_types: MealType[];
+  servings: number;
+  ingredients: RecipeIngredient[];
+  instructions: string | null;
+  generated_by_ai: boolean;
+  created_at: string;
+};
+
+export type MealSlot = {
+  id: string;
+  day_of_week: number;
+  meal_type: MealType;
+  participant_profile_ids: string[];
+};
+
+export type MealPlanEntry = {
+  id: string;
+  week_start: string;
+  day_of_week: number;
+  meal_type: MealType;
+  recipe_id: string | null;
+  participant_profile_ids: string[];
+  recipe: Recipe | null;
+};
+
+export type ShoppingListItem = {
+  id: string;
+  week_start: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  checked: boolean;
+  source: "generated" | "manual";
+};
+
 export type BillWithStatus = Bill & {
   status: "paid" | "overdue" | "upcoming" | "later";
   dueDate: string;
