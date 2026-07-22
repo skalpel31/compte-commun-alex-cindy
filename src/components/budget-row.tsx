@@ -12,7 +12,9 @@ import { deleteBudget, upsertBudget, updateCategoryRollover, renameCategory, set
 import { CategoryIcon, categoryBg, categoryText } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
 import { EditableText } from "@/components/editable-text";
-import type { Category, BillWithStatus } from "@/lib/types";
+import type { Category, BillWithStatus, Profile } from "@/lib/types";
+
+const SHARED = "shared";
 
 export function BudgetRow({
   category,
@@ -23,6 +25,10 @@ export function BudgetRow({
   available,
   auto,
   bills = [],
+  month,
+  profiles = [],
+  scope = "shared",
+  ownerId = null,
 }: {
   category: Category;
   budgetId: string | null;
@@ -32,13 +38,19 @@ export function BudgetRow({
   available?: number;
   auto: boolean;
   bills?: BillWithStatus[];
+  month?: string;
+  profiles?: Profile[];
+  scope?: "shared" | "personal";
+  ownerId?: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState(baseLimit ? String(baseLimit) : "");
   const [rollover, setRollover] = useState(category.budget_rollover);
   const [autoState, setAutoState] = useState(auto);
+  const [owner, setOwner] = useState<string>(scope === "personal" && ownerId ? ownerId : SHARED);
   const [pending, startTransition] = useTransition();
+  const ownerProfile = profiles.find((p) => p.id === ownerId);
 
   // limit/available can legitimately be 0 (budget fully used) — never treat
   // that as "no budget set", only `null`/`undefined` mean that.
@@ -60,13 +72,19 @@ export function BudgetRow({
       setOpen(false);
       return;
     }
+    if (owner !== SHARED) {
+      // Personal budgets are always a fixed amount — auto mode only ever
+      // computes a shared/household number from bills.
+      setAutoState(false);
+    }
     startTransition(async () => {
       try {
         await upsertBudget({
           category_id: category.id,
           amount_limit: numeric,
-          scope: "shared",
-          user_id: null,
+          scope: owner === SHARED ? "shared" : "personal",
+          user_id: owner === SHARED ? null : owner,
+          month,
         });
         toast.success("Budget enregistré");
         setAutoState(false);
@@ -93,10 +111,14 @@ export function BudgetRow({
   }
 
   function handleAutoChange(next: boolean) {
+    if (next && owner !== SHARED) {
+      toast.error("Un budget personnel ne peut pas être en mode auto");
+      return;
+    }
     setAutoState(next);
     startTransition(async () => {
       try {
-        await setBudgetAuto(category.id, next);
+        await setBudgetAuto(category.id, next, month);
         toast.success(
           next ? "Calcul automatique activé" : "Montant figé, ne suivra plus les factures"
         );
@@ -133,7 +155,14 @@ export function BudgetRow({
       >
         <div className="flex items-center gap-3">
           <CategoryIcon icon={category.icon} className={`size-4 shrink-0 ${categoryText(category.color)}`} />
-          <span className="flex-1 text-sm font-medium">{category.name}</span>
+          <span className="flex-1 truncate text-sm font-medium">
+            {category.name}
+            {ownerProfile && (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                {ownerProfile.display_name}
+              </span>
+            )}
+          </span>
           {hasLimit ? (
             <span className="text-xs text-muted-foreground">
               {formatAmount(spent)} / {formatAmount(limit)}
@@ -179,6 +208,38 @@ export function BudgetRow({
             <p className="text-xs text-muted-foreground">
               Déjà dépensé {rollover ? "depuis le début du cumul" : "ce mois-ci"} : {formatAmount(spent)}
             </p>
+            {profiles.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <Label>Pour qui ?</Label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOwner(SHARED)}
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      owner === SHARED
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border hover:bg-muted"
+                    }`}
+                  >
+                    Commun
+                  </button>
+                  {profiles.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setOwner(p.id)}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                        owner === p.id
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      {p.display_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm">
               <Switch checked={rollover} onCheckedChange={handleRolloverChange} disabled={pending} />
               Ce qui n&apos;est pas dépensé se reporte au mois suivant
@@ -189,9 +250,18 @@ export function BudgetRow({
               </p>
             )}
             <label className="flex items-center gap-2 text-sm">
-              <Switch checked={autoState} onCheckedChange={handleAutoChange} disabled={pending} />
+              <Switch
+                checked={autoState}
+                onCheckedChange={handleAutoChange}
+                disabled={pending || owner !== SHARED}
+              />
               Calculer automatiquement depuis les factures de cette catégorie
             </label>
+            {owner !== SHARED && (
+              <p className="text-xs text-muted-foreground">
+                Un budget personnel est toujours un montant fixe.
+              </p>
+            )}
             {autoState && (
               <p className="text-xs text-primary">
                 Calculé automatiquement depuis tes factures — l&apos;enregistrer ici fixera un

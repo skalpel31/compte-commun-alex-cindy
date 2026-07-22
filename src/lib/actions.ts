@@ -38,10 +38,10 @@ function revalidateMoneyPaths() {
 async function syncCategoryBudgetFromBills(
   supabase: SupabaseClient,
   categoryId: string | null,
-  opts?: { force?: boolean }
+  opts?: { force?: boolean; month?: string }
 ) {
   if (!categoryId) return;
-  const month = currentMonth();
+  const month = opts?.month ?? currentMonth();
 
   const { data: bills } = await supabase
     .from("bills")
@@ -87,12 +87,11 @@ async function syncCategoryBudgetFromBills(
  * manually-set budget switch back to being computed from that category's
  * bills, or freeze at its current computed amount.
  */
-export async function setBudgetAuto(categoryId: string, auto: boolean) {
+export async function setBudgetAuto(categoryId: string, auto: boolean, month = currentMonth()) {
   const supabase = await createClient();
   if (auto) {
-    await syncCategoryBudgetFromBills(supabase, categoryId, { force: true });
+    await syncCategoryBudgetFromBills(supabase, categoryId, { force: true, month });
   } else {
-    const month = currentMonth();
     await supabase
       .from("budgets")
       .update({ auto: false })
@@ -489,7 +488,14 @@ const CATEGORY_COLOR_SLOTS = [
  * is tagged with this category, syncCategoryBudgetFromBills fills it in on
  * its own instead of requiring a number up front.
  */
-export async function createBudgetCategory(name: string, icon: string, amount_limit: number | null) {
+export async function createBudgetCategory(
+  name: string,
+  icon: string,
+  amount_limit: number | null,
+  month?: string,
+  scope: "shared" | "personal" = "shared",
+  user_id: string | null = null
+) {
   const supabase = await createClient();
   const household_id = await getCurrentHouseholdId();
   const { data: existing, error: fetchError } = await supabase
@@ -515,7 +521,7 @@ export async function createBudgetCategory(name: string, icon: string, amount_li
   if (catError) throw new Error(catError.message);
 
   if (amount_limit && amount_limit > 0) {
-    await upsertBudget({ category_id: category.id, amount_limit, scope: "shared", user_id: null });
+    await upsertBudget({ category_id: category.id, amount_limit, scope, user_id, month });
   }
   revalidatePath("/settings");
   revalidateMoneyPaths();

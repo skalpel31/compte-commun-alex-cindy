@@ -52,3 +52,10 @@ export function monthLabel(value: string) {
     new Date(value)
   );
 }
+
+/** Shifts a "YYYY-MM-01" month string by `delta` months (negative goes back). */
+export function shiftMonth(month: string, delta: number) {
+  const [year, monthNum] = month.split("-").map(Number);
+  const d = new Date(year, monthNum - 1 + delta, 1);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
+}

@@ -17,13 +17,17 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { createBudgetCategory } from "@/lib/actions";
 import { CategoryIcon, CATEGORY_ICON_LABELS, CATEGORY_ICON_OPTIONS } from "@/lib/category-style";
+import type { Profile } from "@/lib/types";
 
-export function NewBudgetSheet() {
+const SHARED = "shared";
+
+export function NewBudgetSheet({ profiles = [], month }: { profiles?: Profile[]; month?: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [icon, setIcon] = useState(CATEGORY_ICON_OPTIONS[0]);
   const [amount, setAmount] = useState("");
+  const [owner, setOwner] = useState<string>(SHARED);
   const [pending, startTransition] = useTransition();
 
   function handleCreate() {
@@ -43,12 +47,19 @@ export function NewBudgetSheet() {
       // just goes straight to auto instead of blocking the creation.
       numeric = parsed > 0 ? parsed : null;
     }
+    if (owner !== SHARED && !numeric) {
+      toast.error("Indique un montant pour un budget personnel");
+      return;
+    }
+    const scope: "shared" | "personal" = owner === SHARED ? "shared" : "personal";
+    const userId = owner === SHARED ? null : owner;
     startTransition(async () => {
       try {
-        await createBudgetCategory(name.trim(), icon, numeric);
+        await createBudgetCategory(name.trim(), icon, numeric, month, scope, userId);
         toast.success(numeric ? "Budget créé" : "Budget créé, en auto");
         setName("");
         setAmount("");
+        setOwner(SHARED);
         setOpen(false);
         router.refresh();
       } catch (err) {
@@ -118,6 +129,43 @@ export function NewBudgetSheet() {
                 facture sera rattachée à cette catégorie.
               </p>
             </div>
+            {profiles.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <Label>Pour qui ?</Label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOwner(SHARED)}
+                    className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      owner === SHARED
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border hover:bg-muted"
+                    }`}
+                  >
+                    Commun
+                  </button>
+                  {profiles.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setOwner(p.id)}
+                      className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                        owner === p.id
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      {p.display_name}
+                    </button>
+                  ))}
+                </div>
+                {owner !== SHARED && !amount.trim() && (
+                  <p className="text-xs text-warning">
+                    Un budget personnel a besoin d&apos;un montant fixe (pas de mode auto).
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <SheetFooter>
             <Button onClick={handleCreate} disabled={pending}>
