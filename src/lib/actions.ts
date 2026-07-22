@@ -775,15 +775,18 @@ export async function updateDisplayName(display_name: string) {
  * Adds a member who has no login of their own (e.g. a spouse who'll join
  * later, or a child who never will). RLS only allows inserting memberless
  * rows into your own household — see 0027_members_without_login.sql.
+ * `isChild` matters beyond display: it's what private-per-adult data
+ * (Santé, Calisthenics) uses to decide whether every parent should see
+ * this profile's data, or nobody until they claim their own account.
  */
-export async function createMember(display_name: string) {
+export async function createMember(display_name: string, isChild = false) {
   const supabase = await createClient();
   const trimmed = display_name.trim();
   if (!trimmed) throw new Error("Le prénom ne peut pas être vide");
   const household_id = await getCurrentHouseholdId();
   const { error } = await supabase
     .from("profiles")
-    .insert({ display_name: trimmed, household_id, user_id: null });
+    .insert({ display_name: trimmed, household_id, user_id: null, is_child: isChild });
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
   revalidatePath("/dashboard");

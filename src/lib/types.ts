@@ -4,6 +4,7 @@ export type Profile = {
   avatar_url: string | null;
   user_id: string | null;
   claim_code: string | null;
+  is_child: boolean;
 };
 
 export type Pocket = {

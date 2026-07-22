@@ -81,7 +81,7 @@ export async function getVisibleHealthProfiles(): Promise<Profile[]> {
     data: { user },
   } = await supabase.auth.getUser();
   const profiles = await getProfiles();
-  return profiles.filter((p) => p.user_id === user?.id || p.user_id === null);
+  return profiles.filter((p) => p.user_id === user?.id || p.is_child);
 }
 
 export async function getAllHealthProfiles(): Promise<HealthProfile[]> {

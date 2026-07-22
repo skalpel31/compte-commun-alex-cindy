@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { createMember } from "@/lib/actions";
 
@@ -14,6 +15,7 @@ export function AddMemberSheet() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [isChild, setIsChild] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function handleSubmit() {
@@ -23,9 +25,10 @@ export function AddMemberSheet() {
     }
     startTransition(async () => {
       try {
-        await createMember(name);
+        await createMember(name, isChild);
         toast.success("Membre ajouté");
         setName("");
+        setIsChild(false);
         setOpen(false);
         router.refresh();
       } catch (err) {
@@ -58,6 +61,15 @@ export function AddMemberSheet() {
               Pas besoin de compte pour l&apos;instant — tu pourras gérer ses dépenses/revenus toi-même, et lui/elle
               pourra se connecter plus tard si elle veut, avec le même historique.
             </p>
+            <label className="flex items-center justify-between gap-2 rounded-lg border p-3">
+              <span className="text-sm">
+                C&apos;est un enfant
+                <span className="block text-xs font-normal text-muted-foreground">
+                  Son suivi Santé/Calisthenics sera visible par tous les parents, pas privé
+                </span>
+              </span>
+              <Switch checked={isChild} onCheckedChange={setIsChild} />
+            </label>
           </div>
           <SheetFooter>
             <Button onClick={handleSubmit} disabled={pending}>
