@@ -7,7 +7,14 @@ import { currentMonth, localDateString } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
 import { JOINT_PAYER } from "@/lib/payer";
 import { computeIncomeSplit } from "@/lib/income-split";
-import type { MealType, Recipe, RecipeIngredient, RunPoint } from "@/lib/types";
+import type {
+  FitnessGoalTerm,
+  MealType,
+  Recipe,
+  RecipeIngredient,
+  RunPoint,
+  TrainingSession,
+} from "@/lib/types";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -832,6 +839,156 @@ export async function deleteWeightLog(id: string) {
   const { error } = await supabase.from("weight_logs").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/sante");
+}
+
+export type FitnessGoalInput = {
+  name: string;
+  description?: string | null;
+  term: FitnessGoalTerm;
+  target_date?: string | null;
+};
+
+export async function createFitnessGoal(profileId: string, input: FitnessGoalInput) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("fitness_goals").insert({
+    profile_id: profileId,
+    name: input.name.trim(),
+    description: input.description ?? null,
+    term: input.term,
+    target_date: input.target_date ?? null,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/calisthenics");
+}
+
+export async function deleteFitnessGoal(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("fitness_goals").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/calisthenics");
+}
+
+export async function logWorkout(profileId: string, programId: string | null, date: string, notes?: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("workout_logs")
+    .upsert(
+      { profile_id: profileId, program_id: programId, date, notes: notes || null },
+      { onConflict: "profile_id,date" }
+    );
+  if (error) throw new Error(error.message);
+  revalidatePath("/calisthenics");
+}
+
+/**
+ * Generates a beginner-appropriate calisthenics program via the Anthropic
+ * API — same mechanism as generateWeeklyMenu (structured JSON prompt,
+ * robust parsing), covering the person's declared equipment, weekly
+ * frequency, and active goals. Each exercise gets an explicit level (not
+ * just a name), since the whole point for a true beginner is knowing
+ * exactly which variation to start on and what unlocks the next one.
+ */
+export async function generateTrainingProgram(
+  profileId: string,
+  hasPullupBar: boolean,
+  sessionsPerWeek: number,
+  preferences: string
+) {
+  const supabase = await createClient();
+
+  const [{ data: profileRows }, goals] = await Promise.all([
+    supabase.from("profiles").select("display_name").eq("id", profileId).single(),
+    (async () => {
+      const { data } = await supabase
+        .from("fitness_goals")
+        .select("*")
+        .eq("profile_id", profileId)
+        .eq("achieved", false);
+      return data ?? [];
+    })(),
+  ]);
+
+  const goalsSummary = goals.length
+    ? goals
+        .map((g) => `- ${g.name}${g.target_date ? ` (échéance : ${g.target_date})` : ""} [${g.term}]`)
+        .join("\n")
+    : "Aucun objectif précis renseigné — propose une progression générale équilibrée.";
+
+  const prompt = `Tu es un coach en calisthenics (musculation au poids du corps) qui conçoit un
+programme pour un VRAI DÉBUTANT — ${profileRows?.display_name ?? "cette personne"}.
+
+Équipement disponible : ${hasPullupBar ? "une barre de traction" : "aucun, uniquement le poids du corps et le sol"}.
+Fréquence : ${sessionsPerWeek} séance(s) de musculation par semaine (le reste de la semaine est pris par de la course à pied, ne pas en tenir compte ici).
+
+Objectifs à moyen/long terme :
+${goalsSummary}
+
+Notes/progrès/contraintes de la personne : ${preferences || "aucune, premier programme"}
+
+Conçois ${sessionsPerWeek} séance(s) complète(s) (full-body, adapté à un débutant total).
+Pour CHAQUE exercice, indique explicitement le niveau de départ adapté à un débutant
+(ex. pompes inclinées avant pompes sur genoux avant pompes complètes), avec un niveau
+actuel, un nombre total de niveaux dans cette progression, le nom du niveau suivant, et
+un critère clair pour savoir quand passer au niveau suivant (ex. "3 séries de 12 propres").
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, aucun bloc markdown),
+au format exact suivant :
+{
+  "sessions": [
+    {
+      "name": string,
+      "exercises": [
+        {
+          "name": string,
+          "level_name": string,
+          "current_level": number,
+          "total_levels": number,
+          "sets": number,
+          "reps_or_duration": string,
+          "next_level_name": string | null,
+          "progression_criteria": string
+        }
+      ]
+    }
+  ]
+}`;
+
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 8000,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const textBlock = message.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") throw new Error("Réponse IA invalide");
+
+  let parsed: { sessions: TrainingSession[] };
+  try {
+    const raw = textBlock.text.trim();
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end < start) throw new Error("no JSON object found");
+    parsed = JSON.parse(raw.slice(start, end + 1));
+  } catch (err) {
+    console.error("generateTrainingProgram: failed to parse AI response", textBlock.text.slice(0, 2000), err);
+    throw new Error(
+      message.stop_reason === "max_tokens"
+        ? "La réponse de l'IA a été coupée — réessaie avec moins de séances."
+        : "La réponse de l'IA n'est pas un JSON valide"
+    );
+  }
+
+  const { error } = await supabase.from("training_programs").insert({
+    profile_id: profileId,
+    level: "debutant",
+    has_pullup_bar: hasPullupBar,
+    sessions_per_week: sessionsPerWeek,
+    sessions: parsed.sessions,
+    generated_by_ai: true,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/calisthenics");
 }
 
 export type SaveRunInput = {

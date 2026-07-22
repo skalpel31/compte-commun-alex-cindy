@@ -174,6 +174,55 @@ export type Run = {
   profile: Profile | null;
 };
 
+export type FitnessGoalTerm = "moyen_terme" | "long_terme";
+
+export type FitnessGoal = {
+  id: string;
+  profile_id: string;
+  name: string;
+  description: string | null;
+  term: FitnessGoalTerm;
+  target_date: string | null;
+  achieved: boolean;
+  created_at: string;
+};
+
+export type Exercise = {
+  name: string;
+  level_name: string;
+  current_level: number;
+  total_levels: number;
+  sets: number;
+  reps_or_duration: string;
+  next_level_name: string | null;
+  progression_criteria: string;
+};
+
+export type TrainingSession = {
+  name: string;
+  exercises: Exercise[];
+};
+
+export type TrainingProgram = {
+  id: string;
+  profile_id: string;
+  level: "debutant" | "intermediaire" | "avance";
+  has_pullup_bar: boolean;
+  sessions_per_week: number;
+  sessions: TrainingSession[];
+  generated_by_ai: boolean;
+  created_at: string;
+};
+
+export type WorkoutLog = {
+  id: string;
+  profile_id: string;
+  program_id: string | null;
+  date: string;
+  notes: string | null;
+  created_at: string;
+};
+
 export type BillWithStatus = Bill & {
   status: "paid" | "overdue" | "upcoming" | "later";
   dueDate: string;

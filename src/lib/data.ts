@@ -15,11 +15,14 @@ import type {
   MealType,
   Pocket,
   Profile,
+  FitnessGoal,
   Recipe,
   Run,
   ShoppingListItem,
   Transaction,
+  TrainingProgram,
   WeightLog,
+  WorkoutLog,
 } from "@/lib/types";
 
 /**
@@ -403,6 +406,38 @@ export async function getShoppingList(weekStart: string): Promise<ShoppingListIt
     .eq("week_start", weekStart)
     .order("created_at");
   return (data as ShoppingListItem[] | null) ?? [];
+}
+
+export async function getFitnessGoals(profileId: string): Promise<FitnessGoal[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("fitness_goals")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+  return (data as FitnessGoal[] | null) ?? [];
+}
+
+export async function getLatestTrainingProgram(profileId: string): Promise<TrainingProgram | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("training_programs")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data as TrainingProgram | null;
+}
+
+export async function getWorkoutLogs(profileId: string): Promise<WorkoutLog[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("workout_logs")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("date", { ascending: false });
+  return (data as WorkoutLog[] | null) ?? [];
 }
 
 export async function getRuns(): Promise<Run[]> {
