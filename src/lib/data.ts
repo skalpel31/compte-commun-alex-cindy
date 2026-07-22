@@ -8,9 +8,11 @@ import type {
   Budget,
   Category,
   Goal,
+  HealthProfile,
   Pocket,
   Profile,
   Transaction,
+  WeightLog,
 } from "@/lib/types";
 
 /**
@@ -48,6 +50,47 @@ export async function getHousehold(): Promise<{ id: string; name: string; invite
 export async function getProfiles(): Promise<Profile[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("*").order("created_at");
+  return data ?? [];
+}
+
+export function computeBmi(weightKg: number, heightCm: number): number {
+  const heightM = heightCm / 100;
+  return weightKg / (heightM * heightM);
+}
+
+/**
+ * Every profile whose health data I'm allowed to see — myself, plus any
+ * memberless profile (a child) in my household. RLS on health_profiles/
+ * weight_logs enforces the same rule on writes, but profiles itself has no
+ * such restriction, so this filters in app code to match what the health
+ * tables will actually let me read.
+ */
+export async function getVisibleHealthProfiles(): Promise<Profile[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const profiles = await getProfiles();
+  return profiles.filter((p) => p.user_id === user?.id || p.user_id === null);
+}
+
+export async function getHealthProfile(profileId: string): Promise<HealthProfile | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("health_profiles")
+    .select("*")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  return data;
+}
+
+export async function getWeightLogs(profileId: string): Promise<WeightLog[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("weight_logs")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("date", { ascending: false });
   return data ?? [];
 }
 

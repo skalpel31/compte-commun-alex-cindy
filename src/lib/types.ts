@@ -88,6 +88,28 @@ export type Bill = {
   category: Category | null;
 };
 
+export type HealthProfile = {
+  profile_id: string;
+  height_cm: number | null;
+  target_weight_kg: number | null;
+  daily_calorie_target: number | null;
+  goal_type: "perte_de_poids" | "prise_de_masse" | "maintien" | null;
+  protein_target_g: number | null;
+  carbs_target_g: number | null;
+  fat_target_g: number | null;
+  updated_at: string;
+};
+
+export type WeightLog = {
+  id: string;
+  profile_id: string;
+  date: string;
+  weight_kg: number;
+  measurements: Record<string, number> | null;
+  note: string | null;
+  created_at: string;
+};
+
 export type BillWithStatus = Bill & {
   status: "paid" | "overdue" | "upcoming" | "later";
   dueDate: string;

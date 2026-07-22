@@ -795,6 +795,44 @@ export async function updateMemberName(memberId: string, display_name: string) {
   revalidatePath("/dashboard");
 }
 
+export type HealthProfileInput = {
+  height_cm?: number | null;
+  target_weight_kg?: number | null;
+  daily_calorie_target?: number | null;
+  goal_type?: "perte_de_poids" | "prise_de_masse" | "maintien" | null;
+  protein_target_g?: number | null;
+  carbs_target_g?: number | null;
+  fat_target_g?: number | null;
+};
+
+export async function upsertHealthProfile(profileId: string, input: HealthProfileInput) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("health_profiles")
+    .upsert({ profile_id: profileId, ...input, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+  revalidatePath("/sante");
+}
+
+export async function logWeight(profileId: string, date: string, weightKg: number, note?: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("weight_logs")
+    .upsert(
+      { profile_id: profileId, date, weight_kg: weightKg, note: note || null },
+      { onConflict: "profile_id,date" }
+    );
+  if (error) throw new Error(error.message);
+  revalidatePath("/sante");
+}
+
+export async function deleteWeightLog(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("weight_logs").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/sante");
+}
+
 export async function updatePocketAllocation(id: string, allocation_pct: number) {
   const supabase = await createClient();
   const { error } = await supabase.from("pockets").update({ allocation_pct }).eq("id", id);

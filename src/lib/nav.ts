@@ -10,6 +10,7 @@ import {
   LineChart,
   Sparkles,
   Bell,
+  HeartPulse,
   Settings,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ export const navItems = [
   { href: "/budgets", label: "Budgets & Enveloppes", icon: PiggyBank },
   { href: "/objectifs", label: "Objectifs", icon: Target },
   { href: "/epargne", label: "Épargne", icon: Landmark },
+  { href: "/sante", label: "Santé", icon: HeartPulse },
   { href: "/simulations", label: "Simulations", icon: LineChart },
   { href: "/conseiller-ia", label: "Conseiller IA", icon: Sparkles },
   { href: "/alertes", label: "Alertes", icon: Bell },
