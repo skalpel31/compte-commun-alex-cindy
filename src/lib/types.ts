@@ -98,6 +98,10 @@ export type HealthProfile = {
   protein_target_g: number | null;
   carbs_target_g: number | null;
   fat_target_g: number | null;
+  age: number | null;
+  sex: "homme" | "femme" | null;
+  activity_level: "sedentaire" | "leger" | "modere" | "actif" | "tres_actif" | null;
+  goal_duration_months: number | null;
   updated_at: string;
 };
 

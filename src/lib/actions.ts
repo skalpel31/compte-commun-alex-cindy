@@ -806,21 +806,95 @@ export async function updateMemberName(memberId: string, display_name: string) {
   revalidatePath("/dashboard");
 }
 
+/**
+ * Deletes a memberless profile — but only after confirming nothing real is
+ * attached to it. Several tables CASCADE on profiles.id (transactions,
+ * budgets, settlements), so an unguarded delete would silently destroy real
+ * financial history the moment it's attributed to that person; this refuses
+ * instead, with a message naming what's blocking it.
+ */
+export async function deleteMember(memberId: string) {
+  const supabase = await createClient();
+
+  const [{ data: profile }, tx, bp, bills, pockets, budgets] = await Promise.all([
+    supabase.from("profiles").select("user_id, display_name").eq("id", memberId).single(),
+    supabase.from("transactions").select("id").eq("paid_by", memberId).limit(1),
+    supabase.from("bill_payments").select("id").eq("paid_by", memberId).limit(1),
+    supabase.from("bills").select("id").eq("default_payer", memberId).limit(1),
+    supabase.from("pockets").select("id").eq("owner_id", memberId).limit(1),
+    supabase.from("budgets").select("id").eq("user_id", memberId).limit(1),
+  ]);
+  if (profile?.user_id) throw new Error("Ce membre a déjà un compte, il ne peut pas être supprimé ainsi");
+
+  const blockers: string[] = [];
+  if (tx.data?.length) blockers.push("des dépenses/revenus");
+  if (bp.data?.length) blockers.push("des factures payées");
+  if (bills.data?.length) blockers.push("des factures");
+  if (pockets.data?.length) blockers.push("un compte dont il est propriétaire");
+  if (budgets.data?.length) blockers.push("un budget personnel");
+  if (blockers.length > 0) {
+    throw new Error(
+      `Impossible : ${profile?.display_name} a ${blockers.join(", ")} attribué(e)(s) — renomme-le plutôt que de le supprimer, ou réattribue d'abord ces éléments à quelqu'un d'autre.`
+    );
+  }
+
+  const { error } = await supabase.from("profiles").delete().eq("id", memberId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+}
+
 export type HealthProfileInput = {
   height_cm?: number | null;
   target_weight_kg?: number | null;
-  daily_calorie_target?: number | null;
   goal_type?: "perte_de_poids" | "prise_de_masse" | "maintien" | null;
   protein_target_g?: number | null;
   carbs_target_g?: number | null;
   fat_target_g?: number | null;
+  age?: number | null;
+  sex?: "homme" | "femme" | null;
+  activity_level?: "sedentaire" | "leger" | "modere" | "actif" | "tres_actif" | null;
+  goal_duration_months?: number | null;
 };
 
+/**
+ * The daily calorie target is never typed in by hand — it's derived from
+ * BMR (Mifflin-St Jeor) + activity level + the stated weight goal, the
+ * moment enough inputs exist to compute it. See src/lib/health.ts for the
+ * formulas; this just wires them to the latest logged weight.
+ */
 export async function upsertHealthProfile(profileId: string, input: HealthProfileInput) {
   const supabase = await createClient();
+
+  let daily_calorie_target: number | null = null;
+  if (input.height_cm && input.age && input.sex && input.activity_level) {
+    const { data: lastLog } = await supabase
+      .from("weight_logs")
+      .select("weight_kg")
+      .eq("profile_id", profileId)
+      .order("date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastLog) {
+      const { computeBmr, computeTdee, computeCalorieTarget } = await import("@/lib/health");
+      const bmr = computeBmr(lastLog.weight_kg, input.height_cm, input.age, input.sex);
+      const tdee = computeTdee(bmr, input.activity_level);
+      const target = input.target_weight_kg ?? lastLog.weight_kg;
+      const result = computeCalorieTarget(
+        tdee,
+        lastLog.weight_kg,
+        target,
+        input.goal_type ?? "maintien",
+        input.goal_duration_months ?? null,
+        input.sex
+      );
+      daily_calorie_target = result.dailyTarget;
+    }
+  }
+
   const { error } = await supabase
     .from("health_profiles")
-    .upsert({ profile_id: profileId, ...input, updated_at: new Date().toISOString() });
+    .upsert({ profile_id: profileId, ...input, daily_calorie_target, updated_at: new Date().toISOString() });
   if (error) throw new Error(error.message);
   revalidatePath("/sante");
 }

@@ -4,12 +4,10 @@ import { TrendChart } from "@/components/trend-chart";
 import { WeightLogForm } from "@/components/weight-log-form";
 import { WeightHistoryList } from "@/components/weight-history-list";
 import { HealthSettingsForm } from "@/components/health-settings-form";
+import { BmiScale } from "@/components/bmi-scale";
+import { WeightGoalProgress } from "@/components/weight-goal-progress";
+import { MetabolismStats } from "@/components/metabolism-stats";
 import { computeBmi, getHealthProfile, getVisibleHealthProfiles, getWeightLogs } from "@/lib/data";
-import { formatDate } from "@/lib/format";
-
-function dayTick(value: string) {
-  return formatDate(value);
-}
 
 export default async function SanteProfilePage({
   params,
@@ -25,6 +23,8 @@ export default async function SanteProfilePage({
 
   const chartData = [...logs].reverse().map((l) => ({ date: l.date, weight_kg: l.weight_kg }));
   const latest = logs[0] ?? null;
+  const previous = logs[1] ?? null;
+  const first = logs[logs.length - 1] ?? null;
   const bmi = latest && healthProfile?.height_cm ? computeBmi(latest.weight_kg, healthProfile.height_cm) : null;
 
   return (
@@ -34,23 +34,48 @@ export default async function SanteProfilePage({
         <p className="text-sm text-muted-foreground">Suivi du poids et de l&apos;IMC.</p>
       </div>
 
+      {latest && (
+        <Card>
+          <CardContent className="grid gap-6 py-5 sm:grid-cols-2">
+            <WeightGoalProgress
+              currentWeight={latest.weight_kg}
+              previousWeight={previous?.weight_kg ?? null}
+              firstWeight={first?.weight_kg ?? latest.weight_kg}
+              targetWeight={healthProfile?.target_weight_kg ?? null}
+            />
+            {bmi !== null && (
+              <div className="flex items-center">
+                <BmiScale bmi={bmi} />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {latest && healthProfile && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Ton objectif calorique</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MetabolismStats healthProfile={healthProfile} currentWeight={latest.weight_kg} />
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Évolution du poids</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <div className="flex items-baseline gap-4">
-            {latest && <p className="text-2xl font-semibold tabular-nums">{latest.weight_kg} kg</p>}
-            {bmi !== null && <p className="text-sm text-muted-foreground">IMC {bmi.toFixed(1)}</p>}
-          </div>
           {chartData.length > 1 ? (
             <TrendChart
               data={chartData}
               xKey="date"
               yKey="weight_kg"
-              xTickFormatter={dayTick}
+              mode="day"
+              unit="kg"
               seriesName="Poids (kg)"
-              valueFormatter={(v) => `${v} kg`}
             />
           ) : (
             <p className="text-sm text-muted-foreground">

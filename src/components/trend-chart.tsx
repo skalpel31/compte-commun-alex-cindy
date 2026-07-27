@@ -1,33 +1,37 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 
 function monthTick(value: string) {
   return new Intl.DateTimeFormat("fr-FR", { month: "short" }).format(new Date(value + "-02"));
 }
 
 /**
- * Defaults reproduce the original monthly-spend chart exactly (xKey="month",
- * yKey="total", month-name ticks, amounts formatted as currency) — other
- * callers (e.g. a daily weight trend) override the keys/formatters instead
- * of needing a separate chart component for what's the same shell.
+ * `mode` (not function props) picks the tick/value formatting — a Server
+ * Component can't pass a plain function to a Client Component (React can't
+ * serialize it across that boundary), so every caller-specific bit of
+ * formatting has to live in here, keyed by a plain string instead.
  */
 export function TrendChart({
   data,
   xKey = "month",
   yKey = "total",
-  xTickFormatter = monthTick,
+  mode = "month",
+  unit,
   seriesName = "Dépenses",
-  valueFormatter = (v: number) => formatAmount(v),
 }: {
   data: Record<string, string | number>[];
   xKey?: string;
   yKey?: string;
-  xTickFormatter?: (value: string) => string;
+  mode?: "month" | "day";
+  unit?: string;
   seriesName?: string;
-  valueFormatter?: (value: number) => string;
 }) {
+  const xTickFormatter = mode === "day" ? (value: string) => formatDate(value) : monthTick;
+  const valueFormatter = (value: number) =>
+    mode === "day" ? `${value}${unit ? ` ${unit}` : ""}` : formatAmount(value);
+
   return (
     <div className="h-40 w-full">
       <ResponsiveContainer width="100%" height="100%">

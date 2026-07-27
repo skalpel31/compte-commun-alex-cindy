@@ -8,6 +8,7 @@ import { NotificationSettings } from "@/components/notification-settings";
 import { HouseholdInviteCard } from "@/components/household-invite-card";
 import { MemberClaimLink } from "@/components/member-claim-link";
 import { AddMemberSheet } from "@/components/add-member-sheet";
+import { DeleteMemberButton } from "@/components/delete-member-button";
 import { EditableText } from "@/components/editable-text";
 import {
   getBillsTotalByPocket,
@@ -72,9 +73,15 @@ export default async function SettingsPage() {
                         ariaLabel={`Modifier le prénom de ${p.display_name}`}
                       />
                     )}
-                    <Badge variant={isLinked ? "secondary" : "outline"}>
-                      {isLinked ? "Connecté" : "En attente"}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {!isLinked && (
+                        <Badge variant="outline">{p.is_child ? "Enfant" : "Adulte"}</Badge>
+                      )}
+                      <Badge variant={isLinked ? "secondary" : "outline"}>
+                        {isLinked ? "Connecté" : "En attente"}
+                      </Badge>
+                      {!isLinked && <DeleteMemberButton memberId={p.id} />}
+                    </div>
                   </div>
                   {!isLinked && p.claim_code && <MemberClaimLink claimCode={p.claim_code} />}
                 </div>
