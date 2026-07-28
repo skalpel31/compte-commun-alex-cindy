@@ -237,16 +237,18 @@ export async function getPocketContributions(pocketId: string): Promise<Transact
   return ((data as Transaction[] | null) ?? []).filter((t) => t.category?.type === "income");
 }
 
+/**
+ * Buckets by effective_month (a generated column: budget_month if the entry
+ * overrides it, otherwise the calendar month of `date`) rather than `date`
+ * directly — lets an income entry be dated the day it was actually received
+ * while still counting toward a different month's budget.
+ */
 export async function getMonthTransactions(month = currentMonth()): Promise<Transaction[]> {
   const supabase = await createClient();
-  const [year, monthNum] = month.split("-").map(Number);
-  const start = month;
-  const end = `${monthNum === 12 ? year + 1 : year}-${String(monthNum === 12 ? 1 : monthNum + 1).padStart(2, "0")}-01`;
   const { data } = await supabase
     .from("transactions")
     .select("*, category:categories(*), pocket:pockets(*)")
-    .gte("date", start)
-    .lt("date", end)
+    .eq("effective_month", month)
     .order("date", { ascending: false });
   return (data as Transaction[] | null) ?? [];
 }
@@ -812,6 +814,7 @@ export type IncomeSource = {
   transactionIds: string[];
   date: string;
   categoryId: string | null;
+  budgetMonth: string;
 };
 
 const JOINT_SOURCE_KEY = "joint";
@@ -861,6 +864,7 @@ export async function getMonthIncome(
       transactionIds: v.transactionIds,
       date: v.date,
       categoryId: v.categoryId,
+      budgetMonth: month,
     })),
     total,
     byPocket,

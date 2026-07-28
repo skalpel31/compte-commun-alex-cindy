@@ -196,7 +196,13 @@ export async function createTransaction(input: TransactionInput) {
  * pockets exist yet, the amount is recorded unallocated (see
  * buildIncomeSplitRows) until the user sets accounts up and recalculates.
  */
-export async function addSalary(input: { payerId: string; amount: number; date?: string; note?: string }) {
+export async function addSalary(input: {
+  payerId: string;
+  amount: number;
+  date?: string;
+  note?: string;
+  budgetMonth?: string | null;
+}) {
   const supabase = await createClient();
 
   const { data: profile } = await supabase
@@ -234,6 +240,7 @@ export async function addSalary(input: { payerId: string; amount: number; date?:
     amount: input.amount,
     description: note ? `Salaire ${profile.display_name} — ${note}` : `Salaire ${profile.display_name}`,
     date: input.date || localDateString(new Date()),
+    budget_month: input.budgetMonth || null,
     category_id: category.id,
     paid_by: input.payerId,
     split_type: "shared" as const,
@@ -268,6 +275,7 @@ export type IncomeGroupInput = {
   date: string;
   category_id: string;
   paid_by: string | null;
+  budget_month?: string | null;
 };
 
 /**
@@ -288,6 +296,7 @@ export async function updateIncomeAmount(input: IncomeGroupInput) {
   const base = {
     description: input.description,
     date: input.date,
+    budget_month: input.budget_month ?? null,
     category_id: input.category_id,
     paid_by: input.paid_by,
     split_type: "shared" as const,

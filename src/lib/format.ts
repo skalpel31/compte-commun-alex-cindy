@@ -35,6 +35,11 @@ export function currentMonth() {
   return localMonthString(new Date()) + "-01";
 }
 
+/** "YYYY-MM-DD" -> "YYYY-MM-01", the month-bucket format used by budgets/income. */
+export function monthOfDate(dateStr: string) {
+  return dateStr.slice(0, 7) + "-01";
+}
+
 export function dayLabel(value: string) {
   const date = new Date(value + "T00:00:00");
   const today = new Date();

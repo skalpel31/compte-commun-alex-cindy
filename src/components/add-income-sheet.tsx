@@ -3,14 +3,44 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { addSalary } from "@/lib/actions";
-import { localDateString } from "@/lib/format";
+import { localDateString, monthLabel, monthOfDate, shiftMonth } from "@/lib/format";
 import type { Profile } from "@/lib/types";
+
+function BudgetMonthPicker({ month, onChange }: { month: string; onChange: (month: string) => void }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Compte pour le mois de</Label>
+      <div className="flex items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => onChange(shiftMonth(month, -1))}
+          aria-label="Mois précédent"
+          className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        <span className="min-w-32 text-center text-sm font-medium capitalize">{monthLabel(month)}</span>
+        <button
+          type="button"
+          onClick={() => onChange(shiftMonth(month, 1))}
+          aria-label="Mois suivant"
+          className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Utile si l&apos;argent arrive en fin de mois mais finance le mois suivant.
+      </p>
+    </div>
+  );
+}
 
 export function AddIncomeSheet({
   profiles,
@@ -23,9 +53,21 @@ export function AddIncomeSheet({
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => localDateString(new Date()));
+  const [budgetMonth, setBudgetMonth] = useState(() => monthOfDate(localDateString(new Date())));
+  const [budgetMonthTouched, setBudgetMonthTouched] = useState(false);
   const [note, setNote] = useState("");
   const [payerId, setPayerId] = useState<string | null>(profiles[0]?.id ?? null);
   const [pending, startTransition] = useTransition();
+
+  function handleDateChange(next: string) {
+    setDate(next);
+    if (!budgetMonthTouched) setBudgetMonth(monthOfDate(next));
+  }
+
+  function handleBudgetMonthChange(next: string) {
+    setBudgetMonth(next);
+    setBudgetMonthTouched(true);
+  }
 
   function handleSubmit() {
     const numericAmount = parseFloat(amount.replace(",", "."));
@@ -37,12 +79,21 @@ export function AddIncomeSheet({
       toast.error("Choisis qui a touché ce salaire");
       return;
     }
+    const budgetMonthOverride = budgetMonth !== monthOfDate(date) ? budgetMonth : undefined;
     startTransition(async () => {
       try {
-        await addSalary({ payerId, amount: numericAmount, date, note: note.trim() || undefined });
+        await addSalary({
+          payerId,
+          amount: numericAmount,
+          date,
+          note: note.trim() || undefined,
+          budgetMonth: budgetMonthOverride,
+        });
         toast.success("Salaire ajouté");
         setAmount("");
         setDate(localDateString(new Date()));
+        setBudgetMonth(monthOfDate(localDateString(new Date())));
+        setBudgetMonthTouched(false);
         setNote("");
         setOpen(false);
         router.refresh();
@@ -110,9 +161,11 @@ export function AddIncomeSheet({
                 id="salary-date"
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => handleDateChange(e.target.value)}
               />
             </div>
+
+            <BudgetMonthPicker month={budgetMonth} onChange={handleBudgetMonthChange} />
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="salary-note">Note (optionnel)</Label>

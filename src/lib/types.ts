@@ -47,6 +47,7 @@ export type Transaction = {
   amount: number;
   currency: string;
   date: string;
+  budget_month: string | null;
   description: string | null;
   category_id: string | null;
   paid_by: string | null;
