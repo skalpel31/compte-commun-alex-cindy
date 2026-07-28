@@ -1,8 +1,6 @@
 import { ArrowRight, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatAmount } from "@/lib/format";
-import { computeIncomeSplit } from "@/lib/income-split";
-import type { IncomeSource } from "@/lib/data";
 import type { Pocket, Profile } from "@/lib/types";
 
 function colorVar(color: string): string {
@@ -12,20 +10,19 @@ function colorVar(color: string): string {
 export function TransferInstructionsCard({
   profiles,
   pockets,
-  incomeSources,
+  byPayerPocket,
 }: {
   profiles: Profile[];
   pockets: Pocket[];
-  incomeSources: IncomeSource[];
+  byPayerPocket: Record<string, Record<string, number>>;
 }) {
   const payers = profiles
     .map((profile) => {
-      const source = incomeSources.find((s) => s.paidBy === profile.id);
-      const amount = source?.amount ?? 0;
-      const split = computeIncomeSplit(pockets, profile.id, amount);
-      const rows = split
-        .map((s) => ({ pocket: pockets.find((p) => p.id === s.pocketId), amount: s.amount }))
+      const byPocket = byPayerPocket[profile.id] ?? {};
+      const rows = Object.entries(byPocket)
+        .map(([pocketId, amt]) => ({ pocket: pockets.find((p) => p.id === pocketId), amount: amt }))
         .filter((r): r is { pocket: Pocket; amount: number } => !!r.pocket);
+      const amount = rows.reduce((sum, r) => sum + r.amount, 0);
       const keep = rows.find((r) => r.pocket.owner_id === profile.id);
       const transfers = rows.filter((r) => r.pocket.owner_id !== profile.id);
       return { profile, amount, keep, transfers };

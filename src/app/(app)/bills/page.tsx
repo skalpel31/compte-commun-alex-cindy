@@ -3,6 +3,7 @@ import { BillRow } from "@/components/bill-row";
 import { NewBillSheet } from "@/components/bill-sheet";
 import { ResyncBillsButton } from "@/components/resync-bills-button";
 import {
+  getBillCoverageForecast,
   getBills,
   getBudgets,
   getCategories,
@@ -14,7 +15,7 @@ import {
 import { formatAmount } from "@/lib/format";
 
 export default async function BillsPage() {
-  const [bills, completedBills, categories, profiles, pockets, householdId, budgets] = await Promise.all([
+  const [bills, completedBills, categories, profiles, pockets, householdId, budgets, coverage] = await Promise.all([
     getBills(),
     getCompletedBills(),
     getCategories(),
@@ -22,6 +23,7 @@ export default async function BillsPage() {
     getPockets(),
     getCurrentHouseholdId(),
     getBudgets(),
+    getBillCoverageForecast(),
   ]);
   const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.effectiveAmount, 0);
   const overdueCount = bills.filter((b) => b.status === "overdue").length;
@@ -80,7 +82,16 @@ export default async function BillsPage() {
             </p>
           ) : (
             bills.map((b) => (
-              <BillRow key={b.id} bill={b} profiles={profiles} categories={categories} pockets={pockets} budgets={budgets} householdId={householdId} />
+              <BillRow
+                key={b.id}
+                bill={b}
+                profiles={profiles}
+                categories={categories}
+                pockets={pockets}
+                budgets={budgets}
+                householdId={householdId}
+                coverage={coverage.get(b.id)}
+              />
             ))
           )}
         </CardContent>

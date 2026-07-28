@@ -20,6 +20,17 @@ export type Pocket = {
   is_savings: boolean;
 };
 
+export type IncomeSchedule = {
+  id: string;
+  payer_id: string | null;
+  label: string;
+  interval_type: "days" | "months";
+  interval_value: number;
+  anchor_date: string;
+  amount_estimate: number | null;
+  active: boolean;
+};
+
 export type Category = {
   id: string;
   name: string;

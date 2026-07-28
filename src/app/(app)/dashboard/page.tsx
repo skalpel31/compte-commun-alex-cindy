@@ -285,7 +285,7 @@ export default async function DashboardPage() {
           profiles={profiles}
           otherIncomeCategoryId={categories.find((c) => c.name === "Autres revenus")?.id}
         />
-        <TransferInstructionsCard profiles={profiles} pockets={pockets} incomeSources={incomeSources} />
+        <TransferInstructionsCard profiles={profiles} pockets={pockets} byPayerPocket={byPayerPocket} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">

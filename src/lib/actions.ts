@@ -816,13 +816,14 @@ export async function updateMemberName(memberId: string, display_name: string) {
 export async function deleteMember(memberId: string) {
   const supabase = await createClient();
 
-  const [{ data: profile }, tx, bp, bills, pockets, budgets] = await Promise.all([
+  const [{ data: profile }, tx, bp, bills, pockets, budgets, schedules] = await Promise.all([
     supabase.from("profiles").select("user_id, display_name").eq("id", memberId).single(),
     supabase.from("transactions").select("id").eq("paid_by", memberId).limit(1),
     supabase.from("bill_payments").select("id").eq("paid_by", memberId).limit(1),
     supabase.from("bills").select("id").eq("default_payer", memberId).limit(1),
     supabase.from("pockets").select("id").eq("owner_id", memberId).limit(1),
     supabase.from("budgets").select("id").eq("user_id", memberId).limit(1),
+    supabase.from("income_schedules").select("id").eq("payer_id", memberId).limit(1),
   ]);
   if (profile?.user_id) throw new Error("Ce membre a déjà un compte, il ne peut pas être supprimé ainsi");
 
@@ -832,6 +833,7 @@ export async function deleteMember(memberId: string) {
   if (bills.data?.length) blockers.push("des factures");
   if (pockets.data?.length) blockers.push("un compte dont il est propriétaire");
   if (budgets.data?.length) blockers.push("un budget personnel");
+  if (schedules.data?.length) blockers.push("un revenu programmé");
   if (blockers.length > 0) {
     throw new Error(
       `Impossible : ${profile?.display_name} a ${blockers.join(", ")} attribué(e)(s) — renomme-le plutôt que de le supprimer, ou réattribue d'abord ces éléments à quelqu'un d'autre.`
@@ -1475,6 +1477,45 @@ export async function deletePocket(id: string) {
   const { error } = await supabase.from("pockets").delete().eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/settings");
+  revalidateMoneyPaths();
+}
+
+export type IncomeScheduleInput = {
+  payer_id: string | null;
+  label: string;
+  interval_type: "days" | "months";
+  interval_value: number;
+  anchor_date: string;
+  amount_estimate: number | null;
+};
+
+export async function createIncomeSchedule(input: IncomeScheduleInput) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("income_schedules")
+    .insert({ ...input, household_id: await getCurrentHouseholdId() });
+  if (error) throw new Error(error.message);
+  revalidateMoneyPaths();
+}
+
+export async function updateIncomeSchedule(id: string, input: IncomeScheduleInput) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("income_schedules").update(input).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidateMoneyPaths();
+}
+
+export async function updateIncomeScheduleActive(id: string, active: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("income_schedules").update({ active }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidateMoneyPaths();
+}
+
+export async function deleteIncomeSchedule(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("income_schedules").delete().eq("id", id);
+  if (error) throw new Error(error.message);
   revalidateMoneyPaths();
 }
 

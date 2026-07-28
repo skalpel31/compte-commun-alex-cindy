@@ -3,6 +3,17 @@ import { createClient } from "@/lib/supabase/server";
 import { currentMonth, localDateString, localMonthString } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
 import { MEAL_TYPES } from "@/lib/nutrition";
+import { computeIncomeSplit } from "@/lib/income-split";
+import { occurrencesInRange } from "@/lib/income-forecast";
+import {
+  billOccurrencesInRange,
+  computeBillCoverage,
+  defaultForecastHorizon,
+  monthsInRange,
+  type BillCoverageEvent,
+  type ForecastBill,
+  type IncomeForecastEvent,
+} from "@/lib/bill-forecast";
 import type {
   Bill,
   BillWithStatus,
@@ -10,6 +21,7 @@ import type {
   Category,
   Goal,
   HealthProfile,
+  IncomeSchedule,
   MealPlanEntry,
   MealSlot,
   MealType,
@@ -114,6 +126,12 @@ export async function getPockets(): Promise<Pocket[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("pockets").select("*").order("sort_order");
   return data ?? [];
+}
+
+export async function getIncomeSchedules(): Promise<IncomeSchedule[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("income_schedules").select("*").order("created_at");
+  return (data as IncomeSchedule[] | null) ?? [];
 }
 
 export type PocketBalance = Pocket & { balance: number; totalSpent: number; sparkline: number[] };
@@ -642,6 +660,75 @@ export async function getBills(): Promise<BillWithStatus[]> {
     .eq("active", true)
     .order("due_day");
   return withBillStatus(supabase, (bills as Bill[] | null) ?? []);
+}
+
+export type BillCoverage = { dueDate: string; covered: boolean; shortfall: number; nextIncomeDate: string | null };
+
+/**
+ * For each active bill's next due date within the forecast horizon: will
+ * the pocket it draws from still hold enough by then, given its real
+ * balance today plus whatever income schedules are expected to land in it
+ * before that date, minus any other bills due from the same pocket first?
+ * Degrades gracefully with zero schedules configured — it's still more
+ * accurate than a flat "balance minus every pending bill" because it
+ * respects date order instead of subtracting everything at once.
+ */
+export async function getBillCoverageForecast(): Promise<Map<string, BillCoverage>> {
+  const supabase = await createClient();
+  const { start, end } = defaultForecastHorizon();
+
+  const [{ data: bills }, pocketBalances, schedules] = await Promise.all([
+    supabase.from("bills").select("*, category:categories(*)").eq("active", true),
+    getPocketBalances(),
+    getIncomeSchedules(),
+  ]);
+  const activeBills = (bills as Bill[] | null) ?? [];
+
+  const months = monthsInRange(start, end);
+  const { data: payments } = await supabase
+    .from("bill_payments")
+    .select("bill_id, month")
+    .in("month", months)
+    .not("paid_at", "is", null);
+  const paidPairs = new Set((payments ?? []).map((p) => `${p.bill_id}|${p.month}`));
+
+  const forecastBills: ForecastBill[] = activeBills.map((b) => ({
+    id: b.id,
+    name: b.name,
+    amount: b.amount,
+    due_day: b.due_day,
+    pocketId: b.pocket_id ?? b.category?.default_pocket_id ?? null,
+    installments_total: b.installments_total,
+    final_amount: b.final_amount,
+    first_amount: b.first_amount,
+    start_date: b.start_date,
+  }));
+  const billEvents = billOccurrencesInRange(forecastBills, paidPairs, start, end);
+
+  // Only the earliest occurrence per bill in the horizon is shown on /bills.
+  const firstPerBill = new Map<string, BillCoverageEvent>();
+  for (const ev of billEvents) {
+    const existing = firstPerBill.get(ev.billId);
+    if (!existing || ev.dueDate < existing.dueDate) firstPerBill.set(ev.billId, ev);
+  }
+
+  const incomeEvents: IncomeForecastEvent[] = [];
+  for (const schedule of schedules.filter((s) => s.active && s.amount_estimate != null)) {
+    const split = computeIncomeSplit(pocketBalances, schedule.payer_id, schedule.amount_estimate!);
+    for (const date of occurrencesInRange(schedule, start, end)) {
+      for (const s of split) {
+        incomeEvents.push({ pocketId: s.pocketId, amount: s.amount, date: localDateString(date), label: schedule.label });
+      }
+    }
+  }
+
+  const coverage = computeBillCoverage(pocketBalances, [...firstPerBill.values()], incomeEvents);
+  const map = new Map<string, BillCoverage>();
+  for (const r of coverage) {
+    const ev = firstPerBill.get(r.billId);
+    if (ev) map.set(r.billId, { dueDate: ev.dueDate, covered: r.covered, shortfall: r.shortfall, nextIncomeDate: r.nextIncomeDate });
+  }
+  return map;
 }
 
 /**

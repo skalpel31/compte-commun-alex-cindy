@@ -9,9 +9,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { EditBillSheet } from "@/components/bill-sheet";
 import { deleteBill, markBillPaid, markBillUnpaid } from "@/lib/actions";
 import { CategoryIcon } from "@/lib/category-style";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, formatDate } from "@/lib/format";
 import { JOINT_PAYER, payerLabel } from "@/lib/payer";
 import { ReceiptUpload } from "@/components/receipt-upload";
+import type { BillCoverage } from "@/lib/data";
 import type { BillWithStatus, Budget, Category, Pocket, Profile } from "@/lib/types";
 
 const STATUS_META = {
@@ -28,6 +29,7 @@ export function BillRow({
   pockets,
   budgets,
   householdId,
+  coverage,
 }: {
   bill: BillWithStatus;
   profiles: Profile[];
@@ -35,6 +37,7 @@ export function BillRow({
   pockets: Pocket[];
   budgets?: Budget[];
   householdId: string;
+  coverage?: BillCoverage;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -153,6 +156,16 @@ export function BillRow({
           receiptUrl={bill.receipt_url}
         />
       </div>
+
+      {bill.status !== "paid" && coverage && (
+        <p className={`pl-[52px] text-xs ${coverage.covered ? "text-good" : "text-warning"}`}>
+          {coverage.covered
+            ? "✓ Couverte à l'échéance"
+            : `⚠ Il manquera ~${formatAmount(coverage.shortfall)} le ${formatDate(coverage.dueDate)}${
+                coverage.nextIncomeDate ? ` — couvert après le ${formatDate(coverage.nextIncomeDate)}` : ""
+              }`}
+        </p>
+      )}
 
       <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
         <SheetContent side="bottom" className="mx-auto max-w-lg rounded-t-2xl">
