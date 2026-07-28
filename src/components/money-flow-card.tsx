@@ -1,12 +1,15 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import { ChevronRight, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CategoryIcon, categoryBg, nextPocketColor } from "@/lib/category-style";
 import { formatAmount } from "@/lib/format";
+import { deleteTransactions } from "@/lib/actions";
 import { EditIncomeSheet } from "@/components/edit-income-sheet";
 import { AddIncomeSheet } from "@/components/add-income-sheet";
 import { NewPocketSheet } from "@/components/pocket-manager";
@@ -52,7 +55,21 @@ function MoneyFlowDiagram({
   byPayerPocket: Record<string, Record<string, number>>;
   otherIncomeCategoryId?: string;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState<IncomeSource | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function handleDelete(source: IncomeSource) {
+    startTransition(async () => {
+      try {
+        await deleteTransactions(source.transactionIds);
+        toast.success("Revenu supprimé");
+        router.refresh();
+      } catch (err) {
+        toast.error("Suppression impossible", { description: err instanceof Error ? err.message : undefined });
+      }
+    });
+  }
 
   // The lines are drawn from a measured Y (real DOM position of each row,
   // as a % of the container height) rather than an assumed even spread —
@@ -234,10 +251,30 @@ function MoneyFlowDiagram({
             leftRefs.current[b.label] = el;
           };
           if (b.source) {
+            const source = b.source;
             return (
-              <button key={b.label} ref={refCallback} type="button" onClick={() => setEditing(b.source!)} className={className}>
-                {content}
-              </button>
+              <div
+                key={b.label}
+                ref={refCallback}
+                className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-card/70 pr-1 transition-colors hover:bg-card"
+              >
+                <button
+                  type="button"
+                  onClick={() => setEditing(source)}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left"
+                >
+                  {content}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(source)}
+                  disabled={pending}
+                  aria-label="Supprimer ce revenu"
+                  className="shrink-0 p-1 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
             );
           }
           return (
