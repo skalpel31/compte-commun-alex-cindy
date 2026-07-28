@@ -323,19 +323,22 @@ export async function recalculateMonthIncome(month = currentMonth()) {
   const categoryIds = (incomeCategoryIds ?? []).map((c) => c.id);
   if (categoryIds.length === 0) return;
 
-  const [year, monthNum] = month.split("-").map(Number);
-  const start = month;
-  const end = `${monthNum === 12 ? year + 1 : year}-${String(monthNum === 12 ? 1 : monthNum + 1).padStart(2, "0")}-01`;
-
   const { data: transactions } = await supabase
     .from("transactions")
-    .select("id, amount, description, date, category_id, paid_by")
+    .select("id, amount, description, date, budget_month, category_id, paid_by")
     .in("category_id", categoryIds)
-    .gte("date", start)
-    .lt("date", end);
+    .eq("effective_month", month);
   if (!transactions || transactions.length === 0) return;
 
-  type Row = { id: string; amount: number; description: string | null; date: string; category_id: string | null; paid_by: string | null };
+  type Row = {
+    id: string;
+    amount: number;
+    description: string | null;
+    date: string;
+    budget_month: string | null;
+    category_id: string | null;
+    paid_by: string | null;
+  };
   const groups = new Map<string, Row[]>();
   for (const t of transactions as Row[]) {
     const key = `${t.date}|${t.description ?? ""}|${t.category_id}|${t.paid_by ?? ""}`;
@@ -354,6 +357,7 @@ export async function recalculateMonthIncome(month = currentMonth()) {
     const base = {
       description: first.description,
       date: first.date,
+      budget_month: first.budget_month,
       category_id: first.category_id,
       paid_by: first.paid_by,
       split_type: "shared" as const,
