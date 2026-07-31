@@ -3,10 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { assignRecipeToSlot } from "@/lib/actions";
+import { assignRecipeToSlot, regenerateMealSlot } from "@/lib/actions";
 import { computePersonalPortion } from "@/lib/nutrition";
 import type { MealType, Profile, Recipe } from "@/lib/types";
 
@@ -28,6 +30,7 @@ export function MealSlotCell({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [regenPrefs, setRegenPrefs] = useState("");
 
   function handleClear() {
     startTransition(async () => {
@@ -41,6 +44,19 @@ export function MealSlotCell({
         );
         toast.success("Recette retirée");
         setOpen(false);
+        router.refresh();
+      } catch (err) {
+        toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
+      }
+    });
+  }
+
+  function handleRegenerate() {
+    startTransition(async () => {
+      try {
+        await regenerateMealSlot(weekStart, dayOfWeek, mealType, regenPrefs);
+        toast.success("Nouvelle recette proposée");
+        setRegenPrefs("");
         router.refresh();
       } catch (err) {
         toast.error("Échec", { description: err instanceof Error ? err.message : undefined });
@@ -104,9 +120,30 @@ export function MealSlotCell({
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Génère le menu de la semaine pour remplir ce créneau.
+                Génère le menu de la semaine, ou propose une recette juste pour ce repas ci-dessous.
               </p>
             )}
+            <div className="flex flex-col gap-2 rounded-lg border p-2.5">
+              <Label htmlFor={`regen-${dayOfWeek}-${mealType}`} className="text-xs text-muted-foreground">
+                Envies pour {recipe ? "une autre recette" : "ce repas"} ? (optionnel)
+              </Label>
+              <Input
+                id={`regen-${dayOfWeek}-${mealType}`}
+                placeholder="ex : plus simple, sans poisson..."
+                value={regenPrefs}
+                onChange={(e) => setRegenPrefs(e.target.value)}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRegenerate}
+                disabled={pending}
+                className="self-start"
+              >
+                <RefreshCw className={`size-3.5 ${pending ? "animate-spin" : ""}`} />
+                {recipe ? "Régénérer ce repas" : "Proposer une recette"}
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

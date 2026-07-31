@@ -348,8 +348,13 @@ export type PlannedSpend = {
   fixedCharges: number;
   discretionaryBudgets: Budget[];
   discretionaryTotal: number;
+  /** Automatic income split into savings pockets — not a spending limit, but
+   * still money that's spoken for the moment it lands, so it belongs in the
+   * total. */
+  savingsAllocation: number;
   /** Safe to display or compare against income — never double-counts a
-   * category that has both a bill and a leftover manual budget. */
+   * category that has both a bill and a leftover manual budget, and now
+   * accounts for automatic savings too. */
   total: number;
 };
 
@@ -361,8 +366,17 @@ export type PlannedSpend = {
  * category with a bill is always represented by its bill only; every caller
  * (dashboard, an "am I over budget" check) gets a total that can't drift back
  * into double-counting even if that overlap recurs on new categories later.
+ *
+ * savingsAllocation is this month's real income times whatever % of it is
+ * routed straight into savings pockets — based on income actually entered
+ * this month, not a guessed "usual" figure, so it self-corrects the same way
+ * everything else here does as real transactions land.
  */
-export function computePlannedSpend(bills: BillWithStatus[], budgets: Budget[]): PlannedSpend {
+export function computePlannedSpend(
+  bills: BillWithStatus[],
+  budgets: Budget[],
+  savingsAllocation = 0
+): PlannedSpend {
   const fixedCharges = bills.reduce((s, b) => s + b.effectiveAmount, 0);
   const categoriesWithBills = new Set(bills.map((b) => b.category_id).filter((id): id is string => !!id));
   const discretionaryBudgets = budgets.filter(
@@ -373,7 +387,8 @@ export function computePlannedSpend(bills: BillWithStatus[], budgets: Budget[]):
     fixedCharges,
     discretionaryBudgets,
     discretionaryTotal,
-    total: fixedCharges + discretionaryTotal,
+    savingsAllocation,
+    total: fixedCharges + discretionaryTotal + savingsAllocation,
   };
 }
 

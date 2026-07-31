@@ -1233,6 +1233,17 @@ export async function deleteRecipe(id: string) {
  * (who eats what, per the household's own template) — replaces whatever
  * was previously planned for this week.
  */
+/**
+ * Individual calorie targets already get applied at portion time
+ * (computePersonalPortion scales quantity_g per person), so telling the
+ * model about someone's diet goal risks it designing the whole recipe as
+ * "diet food" for the shared family meal instead of a normal dish scaled
+ * smaller for that one person's plate — the opposite of what a household
+ * with picky kids wants.
+ */
+const DIET_TARGET_NOTE =
+  "Important : ce sont des repas FAMILIAUX partagés, pas des recettes de régime. Même si une personne a un objectif calorique, choisis un plat familial normal et apprécié de tous — sa portion sera automatiquement réduite à sa taille d'assiette, pas en changeant la recette elle-même. Privilégie des plats simples et familiaux plutôt que des recettes \"diététiques\" ou allégées.";
+
 export async function generateWeeklyMenu(weekStart: string, preferences: string) {
   const supabase = await createClient();
   const household_id = await getCurrentHouseholdId();
@@ -1271,10 +1282,12 @@ export async function generateWeeklyMenu(weekStart: string, preferences: string)
 Composition du foyer et objectifs nutritionnels :
 ${householdSummary}
 
+${DIET_TARGET_NOTE}
+
 Créneaux de repas à remplir cette semaine (jour de la semaine 0=lundi à 6=dimanche, qui mange) :
 ${slotsSummary}
 
-Envies/contraintes du foyer pour cette semaine : ${preferences || "aucune, propose des repas équilibrés et variés"}
+Envies/contraintes du foyer pour cette semaine : ${preferences || "aucune, propose des repas familiaux simples et variés"}
 
 Génère UNE recette par créneau ci-dessus (des recettes peuvent être réutilisées sur plusieurs créneaux similaires si ça a du sens, ex. le même petit-déjeuner plusieurs jours). Pour chaque ingrédient, donne une estimation réaliste des calories/macros pour 100g.
 
@@ -1365,6 +1378,131 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, aucun b
       .upsert(entries, { onConflict: "household_id,week_start,day_of_week,meal_type" });
     if (error) throw new Error(error.message);
   }
+
+  revalidatePath("/nutrition");
+  revalidatePath("/courses");
+}
+
+/**
+ * Swaps out a single meal without touching the rest of the week — the
+ * "generate the whole week" flow above is fast but all-or-nothing; this is
+ * the targeted fix once you've reviewed a meal and don't like it.
+ */
+export async function regenerateMealSlot(
+  weekStart: string,
+  dayOfWeek: number,
+  mealType: MealType,
+  preferences: string
+) {
+  const supabase = await createClient();
+  const household_id = await getCurrentHouseholdId();
+
+  const [slots, profiles, healthProfiles, entries] = await Promise.all([
+    getMealSlots(),
+    getProfiles(),
+    (async () => {
+      const { data } = await supabase.from("health_profiles").select("*");
+      return (data ?? []) as { profile_id: string; goal_type: string | null; daily_calorie_target: number | null }[];
+    })(),
+    getMealPlanEntries(weekStart),
+  ]);
+
+  const slot = slots.find((s) => s.day_of_week === dayOfWeek && s.meal_type === mealType);
+  if (!slot || slot.participant_profile_ids.length === 0) {
+    throw new Error("Aucun participant pour ce créneau");
+  }
+
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+  const healthByProfileId = new Map(healthProfiles.map((h) => [h.profile_id, h]));
+  const participantsSummary = slot.participant_profile_ids
+    .map((id) => {
+      const p = profileById.get(id);
+      if (!p) return null;
+      const h = healthByProfileId.get(id);
+      const cal = h?.daily_calorie_target ? `${h.daily_calorie_target} kcal/jour cible` : "pas de cible calorique";
+      return `- ${p.display_name} (${cal})`;
+    })
+    .filter((line): line is string => !!line)
+    .join("\n");
+
+  const existing = entries.find((e) => e.day_of_week === dayOfWeek && e.meal_type === mealType);
+  const avoidNote = existing?.recipe
+    ? `\nÉvite de reproposer "${existing.recipe.name}" — la personne cherche une autre idée pour ce repas.`
+    : "";
+
+  const prompt = `Tu es un assistant qui propose UNE recette pour un seul repas d'un foyer.
+
+Qui mange ce repas :
+${participantsSummary}
+
+Type de repas : ${mealType}
+
+${DIET_TARGET_NOTE}
+
+Envies/contraintes pour ce repas : ${preferences || "aucune, propose un plat familial simple et apprécié"}${avoidNote}
+
+Génère UNE SEULE recette adaptée à ce repas. Pour chaque ingrédient, donne une estimation réaliste des calories/macros pour 100g.
+
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, aucun bloc markdown), au format exact suivant :
+{
+  "name": string,
+  "description": string,
+  "meal_types": string[] (parmi "petit_dejeuner","dejeuner","gouter","diner"),
+  "servings": number,
+  "ingredients": [{ "name": string, "quantity_g": number, "kcal_per_100g": number, "protein_per_100g": number, "carbs_per_100g": number, "fat_per_100g": number }],
+  "instructions": string
+}`;
+
+  const Anthropic = (await import("@anthropic-ai/sdk")).default;
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 4000,
+    messages: [{ role: "user", content: prompt }],
+  });
+  const textBlock = message.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") throw new Error("Réponse IA invalide");
+
+  let parsed: RecipeInput;
+  try {
+    const raw = textBlock.text.trim();
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end < start) throw new Error("no JSON object found");
+    parsed = JSON.parse(raw.slice(start, end + 1));
+  } catch (err) {
+    console.error("regenerateMealSlot: failed to parse AI response", textBlock.text.slice(0, 2000), err);
+    throw new Error("La réponse de l'IA n'est pas un JSON valide");
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("recipes")
+    .insert({
+      household_id,
+      name: parsed.name,
+      description: parsed.description ?? null,
+      meal_types: parsed.meal_types,
+      servings: parsed.servings,
+      ingredients: parsed.ingredients,
+      instructions: parsed.instructions ?? null,
+      generated_by_ai: true,
+    })
+    .select("id")
+    .single();
+  if (insertError) throw new Error(insertError.message);
+
+  const { error } = await supabase.from("meal_plan_entries").upsert(
+    {
+      household_id,
+      week_start: weekStart,
+      day_of_week: dayOfWeek,
+      meal_type: mealType,
+      recipe_id: inserted.id,
+      participant_profile_ids: slot.participant_profile_ids,
+    },
+    { onConflict: "household_id,week_start,day_of_week,meal_type" }
+  );
+  if (error) throw new Error(error.message);
 
   revalidatePath("/nutrition");
   revalidatePath("/courses");

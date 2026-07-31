@@ -77,7 +77,13 @@ export default async function DashboardPage() {
     fixedChargesByPocket.set(pocketId, (fixedChargesByPocket.get(pocketId) ?? 0) + b.effectiveAmount);
   }
 
-  const planned = computePlannedSpend(bills, budgets);
+  // What automatically leaves every euro of this month's real income before
+  // it's "free" — the same % split used when a salary lands (see Flux
+  // d'argent), applied to income actually entered this month.
+  const savingsAllocationPct = pockets.filter((p) => p.is_savings).reduce((s, p) => s + p.allocation_pct, 0);
+  const savingsAllocation = Math.round(incomeTotal * (savingsAllocationPct / 100) * 100) / 100;
+
+  const planned = computePlannedSpend(bills, budgets, savingsAllocation);
   const totalFixedCharges = planned.fixedCharges;
   const manualBudgets = planned.discretionaryBudgets;
   const totalFixedExpenses = planned.discretionaryTotal;
@@ -387,6 +393,14 @@ export default async function DashboardPage() {
                     <span className="font-medium tabular-nums">{formatAmount(b.amount_limit)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+            {savingsAllocation > 0 && (
+              <div className="flex items-center justify-between border-t pt-2 text-xs">
+                <span className="text-muted-foreground">
+                  Épargne automatique ({savingsAllocationPct}% du revenu du mois)
+                </span>
+                <span className="font-medium tabular-nums">{formatAmount(savingsAllocation)}</span>
               </div>
             )}
             <div className="flex items-center justify-between border-t pt-2 text-sm">
