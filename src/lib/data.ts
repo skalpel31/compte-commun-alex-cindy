@@ -225,7 +225,7 @@ export async function getTransactions(limit?: number): Promise<Transaction[]> {
   return (data as Transaction[] | null) ?? [];
 }
 
-/** Every deposit ever made into a given (savings) pocket — used by the Épargne detail page to list contributions rather than just showing the running balance. */
+/** Every deposit and withdrawal ever made on a given (savings) pocket — used by the Épargne detail page to list movements rather than just showing the running balance. */
 export async function getPocketContributions(pocketId: string): Promise<Transaction[]> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -234,7 +234,7 @@ export async function getPocketContributions(pocketId: string): Promise<Transact
     .eq("pocket_id", pocketId)
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
-  return ((data as Transaction[] | null) ?? []).filter((t) => t.category?.type === "income");
+  return (data as Transaction[] | null) ?? [];
 }
 
 /**

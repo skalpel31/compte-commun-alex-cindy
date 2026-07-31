@@ -253,6 +253,55 @@ export async function addSalary(input: {
   revalidateMoneyPaths();
 }
 
+/** Money leaving a savings pocket — an ordinary expense pinned to that pocket, under a dedicated auto-created category so it never mixes with the "money going into savings" bills tracked by getSavingsBillTotals. */
+export async function withdrawFromSavings(input: {
+  pocketId: string;
+  amount: number;
+  date?: string;
+  note?: string;
+}) {
+  const supabase = await createClient();
+
+  let { data: category } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("type", "expense")
+    .eq("name", "Retrait épargne")
+    .maybeSingle();
+
+  if (!category) {
+    const { data: created, error } = await supabase
+      .from("categories")
+      .insert({
+        name: "Retrait épargne",
+        icon: "piggy-bank",
+        color: "chart-8",
+        type: "expense",
+        household_id: await getCurrentHouseholdId(),
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    category = created;
+  }
+
+  const note = input.note?.trim();
+  const { error } = await supabase.from("transactions").insert({
+    amount: input.amount,
+    description: note || "Retrait épargne",
+    date: input.date || localDateString(new Date()),
+    category_id: category.id,
+    pocket_id: input.pocketId,
+    paid_by: null,
+    split_type: "shared" as const,
+    split_ratio: {},
+    household_id: await getCurrentHouseholdId(),
+  });
+  if (error) throw new Error(error.message);
+
+  revalidateMoneyPaths();
+}
+
 export async function deleteTransaction(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("transactions").delete().eq("id", id);
