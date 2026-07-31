@@ -31,7 +31,7 @@ import {
   getProfiles,
   getTransactions,
 } from "@/lib/data";
-import { formatAmount, formatDate } from "@/lib/format";
+import { formatAmount, formatDate, parisNow } from "@/lib/format";
 
 export default async function DashboardPage() {
   const [
@@ -189,10 +189,10 @@ export default async function DashboardPage() {
   }
 
   const analyzedAt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(
-    new Date()
+    parisNow()
   );
 
-  const now = new Date();
+  const now = parisNow();
   const hour = now.getHours();
   const greeting = hour < 18 ? "Bonjour" : "Bonsoir";
   const todayLabel = new Intl.DateTimeFormat("fr-FR", {

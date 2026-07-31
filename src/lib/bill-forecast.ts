@@ -1,6 +1,6 @@
 import { addMonths, endOfMonth, isAfter, startOfMonth } from "date-fns";
 import { installmentNumberFor } from "@/lib/bill-installments";
-import { localDateString } from "@/lib/format";
+import { localDateString, parisNow } from "@/lib/format";
 
 export type ForecastBill = {
   id: string;
@@ -39,7 +39,7 @@ export type PocketCoverageResult = {
 /** Today through the end of next month — covers a recurring income cycle
  * that spans a calendar-month boundary (e.g. paid every 14 days), regardless
  * of where in the current month "today" falls. */
-export function defaultForecastHorizon(today = new Date()): { start: Date; end: Date } {
+export function defaultForecastHorizon(today = parisNow()): { start: Date; end: Date } {
   return { start: today, end: endOfMonth(addMonths(today, 1)) };
 }
 

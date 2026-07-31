@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { addDays } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
-import { currentMonth, localDateString, localMonthString } from "@/lib/format";
+import { currentMonth, localDateString, localMonthString, parisNow } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
 import { MEAL_TYPES } from "@/lib/nutrition";
 import { computeIncomeSplit } from "@/lib/income-split";
@@ -168,7 +168,7 @@ export function computePocketBalances(
   txs: PocketBalanceTxRow[]
 ): PocketBalance[] {
   const days = 14;
-  const today = new Date();
+  const today = parisNow();
   const dayKeys: string[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
@@ -515,7 +515,7 @@ export async function getGoals(): Promise<Goal[]> {
 
 export async function getMonthlySpend(monthsBack = 6) {
   const supabase = await createClient();
-  const now = new Date();
+  const now = parisNow();
   const start = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1);
   const { data } = await supabase
     .from("transactions")
@@ -550,7 +550,7 @@ export async function withBillStatus(
     supabase.from("bill_payments").select("bill_id").not("paid_at", "is", null).in("bill_id", billIds),
   ]);
 
-  const today = new Date();
+  const today = parisNow();
   const todayStr = localDateString(today);
   const paidByBillId = new Map((payments ?? []).filter((p) => p.paid_at).map((p) => [p.bill_id as string, p]));
   const paidCountByBillId = new Map<string, number>();

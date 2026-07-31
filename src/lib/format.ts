@@ -31,8 +31,35 @@ export function localMonthString(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 
+/**
+ * "Right now", pinned to Europe/Paris regardless of which timezone the
+ * runtime itself is in. Server code runs on Vercel (UTC), while local dev
+ * runs in whatever timezone the machine is set to — without this, "today"
+ * or "this month" could disagree by up to a few hours right around midnight
+ * (e.g. the month rolling over on one but not the other). Reads Paris's
+ * current Y/M/D/H/M/S and rebuilds them as a local Date, so any later call
+ * to .getFullYear()/.getMonth()/.getDate() in this same process yields
+ * Paris's calendar values no matter the process's own timezone.
+ */
+export function parisNow(): Date {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  // Midnight is formatted as "24" by this API — normalize back to 0.
+  const hour = get("hour") % 24;
+  return new Date(get("year"), get("month") - 1, get("day"), hour, get("minute"), get("second"));
+}
+
 export function currentMonth() {
-  return localMonthString(new Date()) + "-01";
+  return localMonthString(parisNow()) + "-01";
 }
 
 /** "YYYY-MM-DD" -> "YYYY-MM-01", the month-bucket format used by budgets/income. */
@@ -42,7 +69,7 @@ export function monthOfDate(dateStr: string) {
 
 export function dayLabel(value: string) {
   const date = new Date(value + "T00:00:00");
-  const today = new Date();
+  const today = parisNow();
   today.setHours(0, 0, 0, 0);
   const diffDays = Math.round((today.getTime() - date.getTime()) / 86_400_000);
   if (diffDays === 0) return "Aujourd'hui";

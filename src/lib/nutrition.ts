@@ -1,3 +1,4 @@
+import { parisNow } from "@/lib/format";
 import type { MealType, Recipe, RecipeIngredient } from "@/lib/types";
 
 export const MEAL_TYPES: MealType[] = ["petit_dejeuner", "dejeuner", "gouter", "diner"];
@@ -25,7 +26,7 @@ export function dayOfWeekLabel(day: number): string {
 }
 
 /** Monday of the week containing `date`, as YYYY-MM-DD. */
-export function getWeekStart(date = new Date()): string {
+export function getWeekStart(date = parisNow()): string {
   const d = new Date(date);
   const day = d.getDay(); // 0 = Sunday
   const diff = day === 0 ? -6 : 1 - day;

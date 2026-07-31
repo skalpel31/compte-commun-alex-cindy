@@ -12,7 +12,7 @@ import {
   getProfiles,
 } from "@/lib/data";
 import { nextOccurrenceOnOrAfter } from "@/lib/income-forecast";
-import { formatAmount, formatDate, localDateString } from "@/lib/format";
+import { formatAmount, formatDate, localDateString, parisNow } from "@/lib/format";
 import { payerLabel } from "@/lib/payer";
 
 export default async function FluxArgentPage() {
@@ -29,7 +29,7 @@ export default async function FluxArgentPage() {
 
   const upcoming = effectiveSchedules
     .filter((s) => s.active)
-    .map((s) => ({ schedule: s, next: nextOccurrenceOnOrAfter(s, new Date()) }))
+    .map((s) => ({ schedule: s, next: nextOccurrenceOnOrAfter(s, parisNow()) }))
     .sort((a, b) => a.next.getTime() - b.next.getTime());
   const nextByScheduleId = Object.fromEntries(upcoming.map(({ schedule, next }) => [schedule.id, next]));
 

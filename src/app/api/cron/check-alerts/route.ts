@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import webpush from "web-push";
 import { createClient as createServerClient } from "@supabase/supabase-js";
-import { currentMonth, formatAmount } from "@/lib/format";
+import { currentMonth, formatAmount, localDateString, parisNow } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
 import { JOINT_PAYER } from "@/lib/payer";
 
@@ -108,8 +108,8 @@ export async function GET(request: Request) {
 
   // --- Bills: notify 3 days before due, and the day it becomes overdue ---
   const { data: bills } = await supabase.from("bills").select("*").eq("active", true);
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const today = parisNow();
+  const todayStr = localDateString(today);
   const todayDay = today.getDate();
 
   // --- Autopay bills: mark paid automatically once the due day has passed,

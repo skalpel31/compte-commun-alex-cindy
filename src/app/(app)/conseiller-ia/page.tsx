@@ -2,7 +2,7 @@ import { Receipt, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import { AdvisorCard, type AdvisorItem } from "@/components/advisor-card";
 import { AdvisorChat } from "@/components/advisor-chat";
 import { getBills, getGoals, getMonthIncome, getMonthTransactions, getPocketBalances } from "@/lib/data";
-import { formatAmount } from "@/lib/format";
+import { formatAmount, parisNow } from "@/lib/format";
 
 export default async function ConseillerIaPage() {
   const [pockets, bills, monthTransactions, goals, income] = await Promise.all([
@@ -71,7 +71,7 @@ export default async function ConseillerIaPage() {
   }
 
   const analyzedAt = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit" }).format(
-    new Date()
+    parisNow()
   );
 
   return (
