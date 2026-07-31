@@ -38,6 +38,40 @@ export function nextOccurrenceOnOrAfter(schedule: IncomeScheduleLike, from: Date
   return candidate;
 }
 
+export type IncomeTxLike = { description: string | null; date: string; paid_by: string | null };
+
+function normalizeLabel(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * A schedule's anchor_date is just a starting guess, entered once — it goes
+ * stale the moment a real payment matching it gets recorded, since nothing
+ * updates it automatically. Rather than ask the user to keep it in sync,
+ * derive the true "last received" date from the transaction history itself:
+ * same payer, description containing the schedule's label (accent/case/space
+ * insensitive), most recent date wins. Falls back to anchor_date untouched
+ * when no matching transaction exists yet or the anchor is already newer.
+ */
+export function effectiveAnchorDate(
+  schedule: { label: string; payer_id: string | null; anchor_date: string },
+  incomeTransactions: IncomeTxLike[]
+): string {
+  const needle = normalizeLabel(schedule.label);
+  if (!needle) return schedule.anchor_date;
+  let latest = schedule.anchor_date;
+  for (const t of incomeTransactions) {
+    if (t.paid_by !== schedule.payer_id) continue;
+    if (!t.description || !normalizeLabel(t.description).includes(needle)) continue;
+    if (t.date > latest) latest = t.date;
+  }
+  return latest;
+}
+
 /** Every occurrence within [rangeStart, rangeEnd], inclusive. */
 export function occurrencesInRange(schedule: IncomeScheduleLike, rangeStart: Date, rangeEnd: Date): Date[] {
   const result: Date[] = [];

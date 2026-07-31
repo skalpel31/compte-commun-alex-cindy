@@ -3,7 +3,6 @@ import { BillRow } from "@/components/bill-row";
 import { NewBillSheet } from "@/components/bill-sheet";
 import { ResyncBillsButton } from "@/components/resync-bills-button";
 import {
-  getBillCoverageForecast,
   getBills,
   getBudgets,
   getCategories,
@@ -15,7 +14,10 @@ import {
 import { formatAmount } from "@/lib/format";
 
 export default async function BillsPage() {
-  const [bills, completedBills, categories, profiles, pockets, householdId, budgets, coverage] = await Promise.all([
+  // Coverage forecast (getBillCoverageForecast) is temporarily not shown —
+  // too much to take in at once while still learning the app. See BillRow
+  // below for how to bring it back.
+  const [bills, completedBills, categories, profiles, pockets, householdId, budgets] = await Promise.all([
     getBills(),
     getCompletedBills(),
     getCategories(),
@@ -23,7 +25,6 @@ export default async function BillsPage() {
     getPockets(),
     getCurrentHouseholdId(),
     getBudgets(),
-    getBillCoverageForecast(),
   ]);
   const totalDue = bills.filter((b) => b.status !== "paid").reduce((s, b) => s + b.effectiveAmount, 0);
   const overdueCount = bills.filter((b) => b.status === "overdue").length;
@@ -90,7 +91,6 @@ export default async function BillsPage() {
                 pockets={pockets}
                 budgets={budgets}
                 householdId={householdId}
-                coverage={coverage.get(b.id)}
               />
             ))
           )}

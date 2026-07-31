@@ -135,7 +135,15 @@ function ScheduleFormFields({
   );
 }
 
-function IncomeScheduleRow({ schedule, profiles }: { schedule: IncomeSchedule; profiles: Profile[] }) {
+function IncomeScheduleRow({
+  schedule,
+  profiles,
+  nextOverride,
+}: {
+  schedule: IncomeSchedule;
+  profiles: Profile[];
+  nextOverride?: Date;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = useState(false);
@@ -200,7 +208,7 @@ function IncomeScheduleRow({ schedule, profiles }: { schedule: IncomeSchedule; p
     });
   }
 
-  const next = nextOccurrenceOnOrAfter(schedule, new Date());
+  const next = nextOverride ?? nextOccurrenceOnOrAfter(schedule, new Date());
 
   return (
     <div className="flex items-center gap-3 py-2">
@@ -342,13 +350,21 @@ export function NewIncomeScheduleSheet({ profiles }: { profiles: Profile[] }) {
   );
 }
 
-export function IncomeScheduleManager({ schedules, profiles }: { schedules: IncomeSchedule[]; profiles: Profile[] }) {
+export function IncomeScheduleManager({
+  schedules,
+  profiles,
+  nextByScheduleId,
+}: {
+  schedules: IncomeSchedule[];
+  profiles: Profile[];
+  nextByScheduleId?: Record<string, Date>;
+}) {
   return (
     <div className="flex flex-col gap-3">
       {schedules.length > 0 && (
         <div className="flex flex-col divide-y">
           {schedules.map((s) => (
-            <IncomeScheduleRow key={s.id} schedule={s} profiles={profiles} />
+            <IncomeScheduleRow key={s.id} schedule={s} profiles={profiles} nextOverride={nextByScheduleId?.[s.id]} />
           ))}
         </div>
       )}

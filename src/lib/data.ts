@@ -1,10 +1,11 @@
 import { cache } from "react";
+import { addDays } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { currentMonth, localDateString, localMonthString } from "@/lib/format";
 import { installmentNumberFor } from "@/lib/bill-installments";
 import { MEAL_TYPES } from "@/lib/nutrition";
 import { computeIncomeSplit } from "@/lib/income-split";
-import { occurrencesInRange } from "@/lib/income-forecast";
+import { effectiveAnchorDate, occurrencesInRange, type IncomeTxLike } from "@/lib/income-forecast";
 import {
   billOccurrencesInRange,
   computeBillCoverage,
@@ -132,6 +133,22 @@ export async function getIncomeSchedules(): Promise<IncomeSchedule[]> {
   const supabase = await createClient();
   const { data } = await supabase.from("income_schedules").select("*").order("created_at");
   return (data as IncomeSchedule[] | null) ?? [];
+}
+
+/** Feeds effectiveAnchorDate — every income transaction ever recorded, so a schedule's projected next date can be superseded by what actually happened instead of drifting from a manually-set anchor. */
+export async function getIncomeTransactions(): Promise<IncomeTxLike[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("transactions")
+    .select("description, date, paid_by, category:categories!inner(type)")
+    .eq("category.type", "income");
+  return (data as unknown as IncomeTxLike[] | null) ?? [];
+}
+
+/** Schedules with anchor_date reconciled against real payment history (see effectiveAnchorDate). */
+export async function getEffectiveIncomeSchedules(): Promise<IncomeSchedule[]> {
+  const [schedules, incomeTransactions] = await Promise.all([getIncomeSchedules(), getIncomeTransactions()]);
+  return schedules.map((s) => ({ ...s, anchor_date: effectiveAnchorDate(s, incomeTransactions) }));
 }
 
 export type PocketBalance = Pocket & { balance: number; totalSpent: number; sparkline: number[] };
@@ -682,7 +699,7 @@ export async function getBillCoverageForecast(): Promise<Map<string, BillCoverag
   const [{ data: bills }, pocketBalances, schedules] = await Promise.all([
     supabase.from("bills").select("*, category:categories(*)").eq("active", true),
     getPocketBalances(),
-    getIncomeSchedules(),
+    getEffectiveIncomeSchedules(),
   ]);
   const activeBills = (bills as Bill[] | null) ?? [];
 
@@ -714,12 +731,27 @@ export async function getBillCoverageForecast(): Promise<Map<string, BillCoverag
     if (!existing || ev.dueDate < existing.dueDate) firstPerBill.set(ev.billId, ev);
   }
 
+  // Real payroll/benefit dates drift a few days from month to month (a
+  // salary "usually on the 29th" can land on the 31st) — a bill-coverage
+  // check that trusts the projected date exactly would call a bill "covered"
+  // right up until the payment that was supposed to save it arrives late.
+  // Padding the assumed arrival date by a few days keeps the forecast
+  // pessimistic about timing the same way it's already pessimistic about
+  // same-day ordering, without needing the user to track or correct dates.
+  const INCOME_ARRIVAL_SLACK_DAYS = 3;
+
   const incomeEvents: IncomeForecastEvent[] = [];
   for (const schedule of schedules.filter((s) => s.active && s.amount_estimate != null)) {
     const split = computeIncomeSplit(pocketBalances, schedule.payer_id, schedule.amount_estimate!);
     for (const date of occurrencesInRange(schedule, start, end)) {
+      const arrivalDate = addDays(date, INCOME_ARRIVAL_SLACK_DAYS);
       for (const s of split) {
-        incomeEvents.push({ pocketId: s.pocketId, amount: s.amount, date: localDateString(date), label: schedule.label });
+        incomeEvents.push({
+          pocketId: s.pocketId,
+          amount: s.amount,
+          date: localDateString(arrivalDate),
+          label: schedule.label,
+        });
       }
     }
   }

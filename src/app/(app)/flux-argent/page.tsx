@@ -3,25 +3,35 @@ import { MoneyFlowCard } from "@/components/money-flow-card";
 import { PocketManager } from "@/components/pocket-manager";
 import { IncomeScheduleManager } from "@/components/income-schedule-manager";
 import { RecalculateIncomeButton } from "@/components/recalculate-income-button";
-import { getCategories, getIncomeSchedules, getMonthIncome, getPockets, getProfiles } from "@/lib/data";
+import {
+  getCategories,
+  getEffectiveIncomeSchedules,
+  getIncomeSchedules,
+  getMonthIncome,
+  getPockets,
+  getProfiles,
+} from "@/lib/data";
 import { nextOccurrenceOnOrAfter } from "@/lib/income-forecast";
 import { formatAmount, formatDate, localDateString } from "@/lib/format";
 import { payerLabel } from "@/lib/payer";
 
 export default async function FluxArgentPage() {
-  const [{ sources, total, byPayerPocket }, pockets, categories, profiles, schedules] = await Promise.all([
-    getMonthIncome(),
-    getPockets(),
-    getCategories(),
-    getProfiles(),
-    getIncomeSchedules(),
-  ]);
+  const [{ sources, total, byPayerPocket }, pockets, categories, profiles, schedules, effectiveSchedules] =
+    await Promise.all([
+      getMonthIncome(),
+      getPockets(),
+      getCategories(),
+      getProfiles(),
+      getIncomeSchedules(),
+      getEffectiveIncomeSchedules(),
+    ]);
   const otherIncomeCategoryId = categories.find((c) => c.name === "Autres revenus")?.id;
 
-  const upcoming = schedules
+  const upcoming = effectiveSchedules
     .filter((s) => s.active)
     .map((s) => ({ schedule: s, next: nextOccurrenceOnOrAfter(s, new Date()) }))
     .sort((a, b) => a.next.getTime() - b.next.getTime());
+  const nextByScheduleId = Object.fromEntries(upcoming.map(({ schedule, next }) => [schedule.id, next]));
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
@@ -67,7 +77,7 @@ export default async function FluxArgentPage() {
               ))}
             </div>
           )}
-          <IncomeScheduleManager schedules={schedules} profiles={profiles} />
+          <IncomeScheduleManager schedules={schedules} profiles={profiles} nextByScheduleId={nextByScheduleId} />
         </CardContent>
       </Card>
 
