@@ -270,13 +270,29 @@ export async function getMonthTransactions(month = currentMonth()): Promise<Tran
   return (data as Transaction[] | null) ?? [];
 }
 
+/**
+ * A budget row only ever gets written for the specific month it was set in
+ * (upsertBudget/setBudgetAuto both key on category_id+month) — with no
+ * carry-forward, every category's budget silently vanished ("Définir un
+ * budget") the moment a new month started, whether it was auto, rollover,
+ * or a plain fixed amount, until manually re-entered. Falls back to the
+ * most recent PRIOR month's row per category when this month has none yet,
+ * so a budget keeps applying until someone actually changes it — same
+ * self-healing approach as the income schedule anchors.
+ */
 export async function getBudgets(month = currentMonth()): Promise<Budget[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("budgets")
     .select("*, category:categories(*)")
-    .eq("month", month);
-  return (data as Budget[] | null) ?? [];
+    .lte("month", month)
+    .order("month", { ascending: false });
+  const rows = (data as Budget[] | null) ?? [];
+  const latestByCategory = new Map<string, Budget>();
+  for (const row of rows) {
+    if (!latestByCategory.has(row.category_id)) latestByCategory.set(row.category_id, { ...row, month });
+  }
+  return Array.from(latestByCategory.values());
 }
 
 function monthsBetweenInclusive(startMonth: string, endMonth: string): number {
