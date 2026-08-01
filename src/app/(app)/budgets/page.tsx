@@ -74,11 +74,24 @@ export default async function BudgetsPage({
     const budget = budgets.find((b) => b.category_id === category.id);
     const rolling = rollingAvailable[category.id];
     const categoryBills = bills.filter((b) => b.category_id === category.id);
+    // "Auto" budgets are only ever computed and saved into a specific
+    // month's row (setBudgetAuto) — a brand new month has no row for that
+    // category yet, so without this it silently falls back to "no budget
+    // set" every month even though the category's bills haven't changed.
+    // As long as no one has typed a manual fixed amount for THIS month
+    // (budget is genuinely absent, not just auto=false), fall back to the
+    // live bill total so it keeps following the bills automatically.
+    const liveBillTotal = categoryBills.reduce((s, b) => s + b.effectiveAmount, 0);
+    const isImplicitAuto = !budget && liveBillTotal > 0;
     // Rollover categories compare against the CUMULATIVE total/spend
     // since the budget started, not just this month's — otherwise a
     // fully-used rollover budget computes to 0 available and gets
     // mistaken for "no budget set" (0 is a legitimate value here).
-    const limit = rolling ? rolling.cumulativeTotal : (budget?.amount_limit ?? null);
+    const limit = rolling
+      ? rolling.cumulativeTotal
+      : isImplicitAuto
+        ? liveBillTotal
+        : (budget?.amount_limit ?? null);
     const spent = rolling ? rolling.cumulativeSpent : (spendByCategory.get(category.id) ?? 0);
     return (
       <BudgetRow
@@ -89,7 +102,7 @@ export default async function BudgetsPage({
         baseLimit={budget?.amount_limit ?? null}
         spent={spent}
         available={rolling?.available}
-        auto={budget?.auto ?? false}
+        auto={budget?.auto ?? isImplicitAuto}
         bills={categoryBills}
         month={month}
         profiles={profiles}

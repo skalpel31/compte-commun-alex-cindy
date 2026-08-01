@@ -110,14 +110,18 @@ export async function GET(request: Request) {
   const { data: bills } = await supabase.from("bills").select("*").eq("active", true);
   const today = parisNow();
   const todayStr = localDateString(today);
-  const todayDay = today.getDate();
 
   // --- Autopay bills: mark paid automatically once the due day has passed,
   // recording the real transaction just like a manual "marquer payée" would.
   for (const bill of bills ?? []) {
     const userIds = userIdsByHousehold.get(bill.household_id) ?? [];
     if (!bill.autopay || !bill.default_payer) continue;
-    if (todayDay < bill.due_day) continue;
+    // Compares full dates ("2026-08-04"), not raw day-of-month numbers —
+    // todayDay < bill.due_day breaks on the 29th-31st of any month, since
+    // no due_day (capped at 28) is ever greater than that, so every autopay
+    // bill fired at once regardless of its actual due date.
+    const dueDateStr = `${month.slice(0, 7)}-${String(bill.due_day).padStart(2, "0")}`;
+    if (todayStr < dueDateStr) continue;
 
     const { data: existing } = await supabase
       .from("bill_payments")
