@@ -1,6 +1,6 @@
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { withBillStatus, computePocketBalances, type PocketBalanceTxRow } from "@/lib/data";
+import { withBillStatus, computePocketBalances, getCurrentUser, type PocketBalanceTxRow } from "@/lib/data";
 import type { Pocket, Goal, Transaction, BillWithStatus, Bill } from "@/lib/types";
 
 /**
@@ -16,10 +16,7 @@ function adminClient() {
 }
 
 export async function isSuperAdmin(): Promise<boolean> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   return !!user?.email && user.email === process.env.SUPER_ADMIN_EMAIL;
 }
 

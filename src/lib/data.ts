@@ -39,16 +39,31 @@ import type {
 } from "@/lib/types";
 
 /**
+ * supabase.auth.getUser() does a real network round-trip to Supabase's auth
+ * server every time (by design, to revalidate the JWT) — it's not a local
+ * cookie read. Several unrelated call sites (household lookup, super-admin
+ * check, health-profile visibility) each used to call it independently on
+ * every single server render, stacking up 2-3 redundant round trips behind
+ * one page load and making every navigation/click feel laggy. Cached per
+ * request so they all share one call.
+ */
+export const getCurrentUser = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+});
+
+/**
  * RLS scopes every read to the caller's own household automatically, but
  * writes still need the value on hand to set on inserts. Cached per request
  * so multiple calls in the same server render/action don't re-query.
  */
 export const getCurrentHouseholdId = cache(async (): Promise<string> => {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error("Non connecté");
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
     .select("household_id")
@@ -89,11 +104,7 @@ export function computeBmi(weightKg: number, heightCm: number): number {
  * tables will actually let me read.
  */
 export async function getVisibleHealthProfiles(): Promise<Profile[]> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const profiles = await getProfiles();
+  const [user, profiles] = await Promise.all([getCurrentUser(), getProfiles()]);
   return profiles.filter((p) => p.user_id === user?.id || p.is_child);
 }
 
@@ -215,11 +226,9 @@ export async function getPocketBalances(): Promise<PocketBalance[]> {
 }
 
 export async function getCurrentProfile(): Promise<Profile | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return null;
+  const supabase = await createClient();
   const { data } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
   return data;
 }

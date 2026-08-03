@@ -3,6 +3,7 @@ import { WeekNav } from "@/components/week-nav";
 import { ShoppingListItemRow } from "@/components/shopping-list-item-row";
 import { AddShoppingItemForm } from "@/components/add-shopping-item-form";
 import { RegenerateShoppingListButton } from "@/components/regenerate-shopping-list-button";
+import { ShoppingListActions } from "@/components/shopping-list-actions";
 import { getShoppingList } from "@/lib/data";
 import { getWeekStart } from "@/lib/nutrition";
 
@@ -27,9 +28,12 @@ export default async function CoursesPage({
       <WeekNav weekStart={weekStart} basePath="/courses" />
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">Liste de courses</CardTitle>
-          <RegenerateShoppingListButton weekStart={weekStart} />
+          <div className="flex items-center gap-1.5">
+            <ShoppingListActions items={items} weekStart={weekStart} />
+            <RegenerateShoppingListButton weekStart={weekStart} />
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <AddShoppingItemForm weekStart={weekStart} />
