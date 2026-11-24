@@ -3,10 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Plus } from "lucide-react";
+import { Lock, Menu, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems, mobileNavItems, moreNavItems } from "@/lib/nav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+
+const LOCKED_TITLE = "Bientôt disponible en option";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -17,7 +19,21 @@ export function SidebarNav() {
 
   return (
     <>
-      {navItems.map(({ href, label, icon: Icon }) => {
+      {navItems.map(({ href, label, icon: Icon, locked }) => {
+        if (locked) {
+          return (
+            <span
+              key={href}
+              aria-disabled="true"
+              title={LOCKED_TITLE}
+              className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground/50"
+            >
+              <Icon className="size-4" />
+              {label}
+              <Lock className="ml-auto size-3.5" aria-label={LOCKED_TITLE} />
+            </span>
+          );
+        }
         const active = isActive(pathname, href);
         return (
           <Link
@@ -106,7 +122,19 @@ export function BottomNav() {
             <SheetTitle>Plus</SheetTitle>
           </SheetHeader>
           <div className="grid grid-cols-3 gap-2 px-4 pb-6">
-            {moreNavItems.map(({ href, label, icon: Icon }) => (
+            {moreNavItems.map(({ href, label, icon: Icon, locked }) =>
+              locked ? (
+                <span
+                  key={href}
+                  aria-disabled="true"
+                  title={LOCKED_TITLE}
+                  className="relative flex cursor-not-allowed flex-col items-center gap-2 rounded-xl border p-3 text-center text-xs font-medium text-muted-foreground/50"
+                >
+                  <Lock className="absolute right-2 top-2 size-3" aria-label={LOCKED_TITLE} />
+                  <Icon className="size-5" />
+                  {label}
+                </span>
+              ) : (
               <Link
                 key={href}
                 href={href}
@@ -116,7 +144,8 @@ export function BottomNav() {
                 <Icon className="size-5" />
                 {label}
               </Link>
-            ))}
+              )
+            )}
           </div>
         </SheetContent>
       </Sheet>
