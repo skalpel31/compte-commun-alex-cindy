@@ -27,15 +27,21 @@ export const navItems = [
   { href: "/budgets", label: "Budgets & Enveloppes", icon: PiggyBank },
   { href: "/objectifs", label: "Objectifs", icon: Target },
   { href: "/epargne", label: "Épargne", icon: Landmark },
+  { href: "/simulations", label: "Simulations", icon: LineChart },
+  { href: "/conseiller-ia", label: "Conseiller IA", icon: Sparkles },
+  { href: "/alertes", label: "Alertes", icon: Bell },
+  { href: "/settings", label: "Paramètres", icon: Settings },
+] as const;
+
+// Hors-finances, mis de côté pour garder l'app centrée sur les comptes.
+// Les pages restent accessibles par leur URL ; pour en remettre une dans
+// le menu, déplacer son entrée dans navItems.
+export const parkedNavItems = [
   { href: "/sante", label: "Santé", icon: HeartPulse },
   { href: "/nutrition", label: "Nutrition", icon: UtensilsCrossed },
   { href: "/courses", label: "Courses", icon: ShoppingCart },
   { href: "/course-a-pied", label: "Course à pied", icon: Footprints },
   { href: "/calisthenics", label: "Calisthenics", icon: Dumbbell },
-  { href: "/simulations", label: "Simulations", icon: LineChart },
-  { href: "/conseiller-ia", label: "Conseiller IA", icon: Sparkles },
-  { href: "/alertes", label: "Alertes", icon: Bell },
-  { href: "/settings", label: "Paramètres", icon: Settings },
 ] as const;
 
 export const mobileNavItems = [
